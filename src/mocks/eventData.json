@@ -1,0 +1,87 @@
+[
+    {
+        "id": 1,
+        "cameraId": 1,
+        "cameraName": "거실 카메라",
+        "type": "motion",
+        "startedAt": "2025-08-19T06:10:00.000Z",
+        "endedAt": "2025-08-19T06:10:15.000Z",
+        "isPinned": false,
+        "score": 0.85,
+        "metadata": {
+            "confidence": 0.85,
+            "objectType": "person",
+            "duration": 15
+        },
+        "createdAt": "2025-08-19T06:10:00.000Z",
+        "updatedAt": "2025-08-19T06:10:15.000Z"
+    },
+    {
+        "id": 2,
+        "cameraId": 2,
+        "cameraName": "현관 카메라",
+        "type": "motion",
+        "startedAt": "2025-08-19T06:05:30.000Z",
+        "endedAt": "2025-08-19T06:05:45.000Z",
+        "isPinned": true,
+        "score": 0.92,
+        "metadata": {
+            "confidence": 0.92,
+            "objectType": "person",
+            "duration": 15
+        },
+        "createdAt": "2025-08-19T06:05:30.000Z",
+        "updatedAt": "2025-08-19T06:05:45.000Z"
+    },
+    {
+        "id": 3,
+        "cameraId": 1,
+        "cameraName": "거실 카메라",
+        "type": "sound",
+        "startedAt": "2025-08-19T06:00:00.000Z",
+        "endedAt": "2025-08-19T06:00:10.000Z",
+        "isPinned": false,
+        "score": 0.78,
+        "metadata": {
+            "confidence": 0.78,
+            "soundType": "glass_breaking",
+            "duration": 10
+        },
+        "createdAt": "2025-08-19T06:00:00.000Z",
+        "updatedAt": "2025-08-19T06:00:10.000Z"
+    },
+    {
+        "id": 4,
+        "cameraId": 4,
+        "cameraName": "침실 카메라",
+        "type": "motion",
+        "startedAt": "2025-08-19T05:55:20.000Z",
+        "endedAt": "2025-08-19T05:55:35.000Z",
+        "isPinned": false,
+        "score": 0.67,
+        "metadata": {
+            "confidence": 0.67,
+            "objectType": "pet",
+            "duration": 15
+        },
+        "createdAt": "2025-08-19T05:55:20.000Z",
+        "updatedAt": "2025-08-19T05:55:35.000Z"
+    },
+    {
+        "id": 5,
+        "cameraId": 2,
+        "cameraName": "현관 카메라",
+        "type": "motion",
+        "startedAt": "2025-08-19T05:50:10.000Z",
+        "endedAt": "2025-08-19T05:50:25.000Z",
+        "isPinned": false,
+        "score": 0.89,
+        "metadata": {
+            "confidence": 0.89,
+            "objectType": "person",
+            "duration": 15
+        },
+        "createdAt": "2025-08-19T05:50:10.000Z",
+        "updatedAt": "2025-08-19T05:50:25.000Z"
+    }
+]
