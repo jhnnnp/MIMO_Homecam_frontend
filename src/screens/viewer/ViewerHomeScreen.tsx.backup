@@ -1,0 +1,312 @@
+import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    FlatList,
+    StatusBar,
+    RefreshControl,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, spacing, radius, elevation } from '../../design/tokens';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/AppNavigator';
+
+type ViewerHomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'LiveStream'>;
+
+interface ViewerHomeScreenProps {
+    navigation: ViewerHomeScreenNavigationProp;
+}
+
+interface Camera {
+    id: number;
+    name: string;
+    status: 'online' | 'offline' | 'recording';
+    lastSeen: string;
+    thumbnail?: string;
+}
+
+const mockCameras: Camera[] = [
+    {
+        id: 1,
+        name: '거실 카메라',
+        status: 'online',
+        lastSeen: '방금 전',
+    },
+    {
+        id: 2,
+        name: '현관 카메라',
+        status: 'recording',
+        lastSeen: '1분 전',
+    },
+    {
+        id: 3,
+        name: '베란다 카메라',
+        status: 'offline',
+        lastSeen: '5분 전',
+    },
+];
+
+export default function ViewerHomeScreen({ navigation }: ViewerHomeScreenProps) {
+    const [cameras, setCameras] = useState<Camera[]>(mockCameras);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        // 실제로는 API 호출
+        setTimeout(() => {
+            setRefreshing(false);
+        }, 1000);
+    };
+
+    const getStatusColor = (status: Camera['status']) => {
+        switch (status) {
+            case 'online':
+                return colors.success;
+            case 'recording':
+                return colors.warning;
+            case 'offline':
+                return colors.error;
+            default:
+                return colors.textSecondary;
+        }
+    };
+
+    const getStatusText = (status: Camera['status']) => {
+        switch (status) {
+            case 'online':
+                return '온라인';
+            case 'recording':
+                return '녹화 중';
+            case 'offline':
+                return '오프라인';
+            default:
+                return '알 수 없음';
+        }
+    };
+
+    const renderCameraItem = ({ item }: { item: Camera }) => (
+        <TouchableOpacity
+            style={styles.cameraCard}
+            onPress={() => navigation.navigate('LiveStream', {
+                cameraId: item.id,
+                cameraName: item.name,
+            })}
+            activeOpacity={0.8}
+        >
+            <LinearGradient
+                colors={[colors.surface, colors.surfaceAlt]}
+                style={styles.cameraCardGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            >
+                <View style={styles.cameraHeader}>
+                    <View style={styles.cameraIconContainer}>
+                        <Ionicons name="videocam" size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.cameraInfo}>
+                        <Text style={styles.cameraName}>{item.name}</Text>
+                        <Text style={styles.cameraLastSeen}>{item.lastSeen}</Text>
+                    </View>
+                    <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(item.status) }]}>
+                        <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.cameraActions}>
+                    <TouchableOpacity style={styles.actionButton}>
+                        <Ionicons name="play-circle" size={20} color={colors.primary} />
+                        <Text style={styles.actionText}>라이브</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionButton}>
+                        <Ionicons name="albums" size={20} color={colors.primary} />
+                        <Text style={styles.actionText}>녹화</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionButton}>
+                        <Ionicons name="settings" size={20} color={colors.primary} />
+                        <Text style={styles.actionText}>설정</Text>
+                    </TouchableOpacity>
+                </View>
+            </LinearGradient>
+        </TouchableOpacity>
+    );
+
+    return (
+        <>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+            <View style={styles.container}>
+                <LinearGradient
+                    colors={[colors.background, colors.surfaceAlt]}
+                    style={styles.backgroundGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                />
+
+                <SafeAreaView style={styles.safeArea}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <Text style={styles.title}>뷰어 모드</Text>
+                        <Text style={styles.subtitle}>연결된 카메라를 확인하세요</Text>
+                    </View>
+
+                    {/* Camera List */}
+                    <FlatList
+                        data={cameras}
+                        renderItem={renderCameraItem}
+                        keyExtractor={(item) => item.id.toString()}
+                        contentContainerStyle={styles.cameraList}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={onRefresh}
+                                colors={[colors.primary]}
+                                tintColor={colors.primary}
+                            />
+                        }
+                        showsVerticalScrollIndicator={false}
+                    />
+
+                    {/* Quick Actions */}
+                    <View style={styles.quickActions}>
+                        <TouchableOpacity
+                            style={styles.quickActionButton}
+                            onPress={() => navigation.navigate('ViewerQRScan')}
+                        >
+                            <Ionicons name="qr-code" size={24} color={colors.primary} />
+                            <Text style={styles.quickActionText}>QR 코드 스캔</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.quickActionButton}>
+                            <Ionicons name="add-circle" size={24} color={colors.primary} />
+                            <Text style={styles.quickActionText}>카메라 추가</Text>
+                        </TouchableOpacity>
+                    </View>
+                </SafeAreaView>
+            </View>
+        </>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: colors.background,
+    },
+    backgroundGradient: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    safeArea: {
+        flex: 1,
+    },
+    header: {
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.md,
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: '800',
+        color: colors.primary,
+        marginBottom: spacing.xs,
+    },
+    subtitle: {
+        fontSize: 16,
+        color: colors.textSecondary,
+        fontWeight: '500',
+    },
+    cameraList: {
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.xl,
+    },
+    cameraCard: {
+        borderRadius: radius.lg,
+        overflow: 'hidden',
+        marginBottom: spacing.md,
+        ...elevation['2'],
+    },
+    cameraCardGradient: {
+        padding: spacing.lg,
+    },
+    cameraHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: spacing.md,
+    },
+    cameraIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: colors.primary + '15',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: spacing.md,
+    },
+    cameraInfo: {
+        flex: 1,
+    },
+    cameraName: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: colors.text,
+        marginBottom: spacing.xs,
+    },
+    cameraLastSeen: {
+        fontSize: 14,
+        color: colors.textSecondary,
+    },
+    statusIndicator: {
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    statusText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.surface,
+    },
+    cameraActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        borderTopWidth: 1,
+        borderTopColor: colors.divider,
+        paddingTop: spacing.md,
+    },
+    actionButton: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    actionText: {
+        fontSize: 12,
+        color: colors.primary,
+        fontWeight: '600',
+        marginTop: spacing.xs,
+    },
+    quickActions: {
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.lg,
+    },
+    quickActionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.surface,
+        paddingVertical: spacing.md,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.primary + '20',
+        ...elevation['1'],
+    },
+    quickActionText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.primary,
+        marginLeft: spacing.sm,
+    },
+}); 

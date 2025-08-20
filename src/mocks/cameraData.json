@@ -1,0 +1,64 @@
+[
+    {
+        "id": 1,
+        "userId": 1,
+        "name": "거실 카메라",
+        "location": "거실",
+        "isOnline": true,
+        "lastHeartbeat": "2025-08-19T06:12:00.000Z",
+        "metadata": {
+            "resolution": "1080p",
+            "fps": 30,
+            "nightVision": true
+        },
+        "createdAt": "2025-08-15T10:00:00.000Z",
+        "updatedAt": "2025-08-19T06:12:00.000Z"
+    },
+    {
+        "id": 2,
+        "userId": 1,
+        "name": "현관 카메라",
+        "location": "현관",
+        "isOnline": true,
+        "lastHeartbeat": "2025-08-19T06:11:58.000Z",
+        "metadata": {
+            "resolution": "720p",
+            "fps": 25,
+            "nightVision": true,
+            "motionDetection": true
+        },
+        "createdAt": "2025-08-16T14:30:00.000Z",
+        "updatedAt": "2025-08-19T06:11:58.000Z"
+    },
+    {
+        "id": 3,
+        "userId": 1,
+        "name": "주방 카메라",
+        "location": "주방",
+        "isOnline": false,
+        "lastHeartbeat": "2025-08-19T05:45:00.000Z",
+        "metadata": {
+            "resolution": "1080p",
+            "fps": 30,
+            "nightVision": false
+        },
+        "createdAt": "2025-08-17T09:15:00.000Z",
+        "updatedAt": "2025-08-19T05:45:00.000Z"
+    },
+    {
+        "id": 4,
+        "userId": 1,
+        "name": "침실 카메라",
+        "location": "침실",
+        "isOnline": true,
+        "lastHeartbeat": "2025-08-19T06:12:02.000Z",
+        "metadata": {
+            "resolution": "720p",
+            "fps": 20,
+            "nightVision": true,
+            "privacyMode": true
+        },
+        "createdAt": "2025-08-18T16:20:00.000Z",
+        "updatedAt": "2025-08-19T06:12:02.000Z"
+    }
+]

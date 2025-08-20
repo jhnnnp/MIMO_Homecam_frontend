@@ -1,0 +1,47 @@
+{
+    "count": 3,
+    "notifications": [
+        {
+            "id": 1,
+            "userId": 1,
+            "type": "motion",
+            "title": "거실에서 움직임 감지",
+            "message": "거실 카메라에서 움직임이 감지되었습니다.",
+            "isRead": false,
+            "metadata": {
+                "cameraId": 1,
+                "cameraName": "거실 카메라",
+                "eventId": 1
+            },
+            "createdAt": "2025-08-19T06:10:00.000Z"
+        },
+        {
+            "id": 2,
+            "userId": 1,
+            "type": "sound",
+            "title": "유리 깨지는 소리 감지",
+            "message": "거실 카메라에서 유리 깨지는 소리가 감지되었습니다.",
+            "isRead": false,
+            "metadata": {
+                "cameraId": 1,
+                "cameraName": "거실 카메라",
+                "eventId": 3
+            },
+            "createdAt": "2025-08-19T06:00:00.000Z"
+        },
+        {
+            "id": 3,
+            "userId": 1,
+            "type": "motion",
+            "title": "현관에서 움직임 감지",
+            "message": "현관 카메라에서 움직임이 감지되었습니다.",
+            "isRead": true,
+            "metadata": {
+                "cameraId": 2,
+                "cameraName": "현관 카메라",
+                "eventId": 2
+            },
+            "createdAt": "2025-08-19T06:05:30.000Z"
+        }
+    ]
+}
