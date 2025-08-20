@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,19 +9,31 @@ import { colors, typography } from '../design/tokens';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ModeSelectionScreen from '../screens/ModeSelectionScreen';
-import HomeScreen from '../screens/HomeScreen';
-import DevicesScreen from '../screens/DevicesScreen';
-import LiveStreamScreen from '../screens/LiveStreamScreen';
-import EventsScreen from '../screens/EventsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+
+// Viewer Mode Screens
+import ViewerHomeScreen from '../screens/viewer/ViewerHomeScreen';
+import ViewerLiveStreamScreen from '../screens/viewer/ViewerLiveStreamScreen';
+import ViewerQRScanScreen from '../screens/viewer/ViewerQRScanScreen';
+
+// Camera Mode Screens
+import CameraHomeScreen from '../screens/camera/CameraHomeScreen';
+import CameraSettingsScreen from '../screens/camera/CameraSettingsScreen';
+import CameraQRCodeScreen from '../screens/camera/CameraQRCodeScreen';
+
 import { useAuthStore } from '../stores/authStore';
 
 // Navigation Types
 export type RootStackParamList = {
     Auth: undefined;
     ModeSelection: undefined;
-    Main: undefined;
+    ViewerMode: undefined;
+    CameraMode: undefined;
     LiveStream: { cameraId: number; cameraName: string };
+    CameraSettings: undefined;
+    CameraQRCode: undefined;
+    ViewerQRScan: undefined;
+    Settings: undefined;
 };
 
 export type AuthStackParamList = {
@@ -30,16 +42,24 @@ export type AuthStackParamList = {
     ForgotPassword: undefined;
 };
 
-export type MainTabParamList = {
-    Home: undefined;
-    Devices: undefined;
-    Events: undefined;
+export type ViewerStackParamList = {
+    ViewerHome: undefined;
+    LiveStream: { cameraId: number; cameraName: string };
+    ViewerQRScan: undefined;
+    Settings: undefined;
+};
+
+export type CameraStackParamList = {
+    CameraHome: undefined;
+    CameraSettings: undefined;
+    CameraQRCode: undefined;
     Settings: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const MainTab = createBottomTabNavigator<MainTabParamList>();
+const ViewerStack = createNativeStackNavigator<ViewerStackParamList>();
+const CameraStack = createNativeStackNavigator<CameraStackParamList>();
 
 // Auth Navigator
 function AuthNavigator() {
@@ -57,71 +77,58 @@ function AuthNavigator() {
     );
 }
 
-// Main Tab Navigator
-function MainTabNavigator() {
+// Viewer Mode Navigator
+function ViewerNavigator() {
     return (
-        <MainTab.Navigator
-            screenOptions={({ route }) => ({
+        <ViewerStack.Navigator
+            screenOptions={{
                 headerShown: false,
-                tabBarIcon: ({ focused, color, size }) => {
-                    let iconName: keyof typeof Ionicons.glyphMap;
-
-                    switch (route.name) {
-                        case 'Home':
-                            iconName = focused ? 'home' : 'home-outline';
-                            break;
-                        case 'Devices':
-                            iconName = focused ? 'videocam' : 'videocam-outline';
-                            break;
-                        case 'Events':
-                            iconName = focused ? 'albums' : 'albums-outline';
-                            break;
-                        case 'Settings':
-                            iconName = focused ? 'settings' : 'settings-outline';
-                            break;
-                        default:
-                            iconName = 'help-outline';
-                    }
-
-                    return <Ionicons name={iconName} size={size} color={color} />;
-                },
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: colors.textWeak,
-                tabBarStyle: {
-                    backgroundColor: colors.surface,
-                    borderTopWidth: 1,
-                    borderTopColor: colors.divider,
-                    height: 90,
-                    paddingBottom: 30,
-                    paddingTop: 10,
-                },
-                tabBarLabelStyle: {
-                    ...typography.caption,
-                    fontWeight: '500',
-                },
-            })}
+                gestureEnabled: true,
+            }}
         >
-            <MainTab.Screen
-                name="Home"
-                component={HomeScreen}
-                options={{ tabBarLabel: '홈' }}
+            <ViewerStack.Screen name="ViewerHome" component={ViewerHomeScreen} />
+            <ViewerStack.Screen
+                name="LiveStream"
+                component={ViewerLiveStreamScreen}
+                options={{
+                    presentation: 'modal',
+                    gestureEnabled: true,
+                }}
             />
-            <MainTab.Screen
-                name="Devices"
-                component={DevicesScreen}
-                options={{ tabBarLabel: '디바이스' }}
+            <ViewerStack.Screen
+                name="ViewerQRScan"
+                component={ViewerQRScanScreen}
+                options={{
+                    presentation: 'modal',
+                    gestureEnabled: true,
+                }}
             />
-            <MainTab.Screen
-                name="Events"
-                component={EventsScreen}
-                options={{ tabBarLabel: '저장 영상' }}
+            <ViewerStack.Screen name="Settings" component={SettingsScreen} />
+        </ViewerStack.Navigator>
+    );
+}
+
+// Camera Mode Navigator
+function CameraNavigator() {
+    return (
+        <CameraStack.Navigator
+            screenOptions={{
+                headerShown: false,
+                gestureEnabled: true,
+            }}
+        >
+            <CameraStack.Screen name="CameraHome" component={CameraHomeScreen} />
+            <CameraStack.Screen name="CameraSettings" component={CameraSettingsScreen} />
+            <CameraStack.Screen
+                name="CameraQRCode"
+                component={CameraQRCodeScreen}
+                options={{
+                    presentation: 'modal',
+                    gestureEnabled: true,
+                }}
             />
-            <MainTab.Screen
-                name="Settings"
-                component={SettingsScreen}
-                options={{ tabBarLabel: '설정' }}
-            />
-        </MainTab.Navigator>
+            <CameraStack.Screen name="Settings" component={SettingsScreen} />
+        </CameraStack.Navigator>
     );
 }
 
@@ -132,7 +139,11 @@ export default function AppNavigator() {
     console.log('📱 AppNavigator render - isAuthenticated:', isAuthenticated);
 
     return (
-        <NavigationContainer>
+        <NavigationContainer
+            onStateChange={(state) => {
+                console.log('Navigation state changed:', state);
+            }}
+        >
             <RootStack.Navigator
                 screenOptions={{
                     headerShown: false,
@@ -141,16 +152,41 @@ export default function AppNavigator() {
             >
                 {isAuthenticated ? (
                     <>
-                        <RootStack.Screen name="ModeSelection" component={ModeSelectionScreen} />
-                        <RootStack.Screen name="Main" component={MainTabNavigator} />
+                        <RootStack.Screen
+                            name="ModeSelection"
+                            component={ModeSelectionScreen}
+                            options={{
+                                gestureEnabled: false,
+                            }}
+                        />
+                        <RootStack.Screen name="ViewerMode" component={ViewerNavigator} />
+                        <RootStack.Screen name="CameraMode" component={CameraNavigator} />
                         <RootStack.Screen
                             name="LiveStream"
-                            component={LiveStreamScreen}
+                            component={ViewerLiveStreamScreen}
                             options={{
                                 presentation: 'modal',
                                 gestureEnabled: true,
                             }}
                         />
+                        <RootStack.Screen name="CameraSettings" component={CameraSettingsScreen} />
+                        <RootStack.Screen
+                            name="CameraQRCode"
+                            component={CameraQRCodeScreen}
+                            options={{
+                                presentation: 'modal',
+                                gestureEnabled: true,
+                            }}
+                        />
+                        <RootStack.Screen
+                            name="ViewerQRScan"
+                            component={ViewerQRScanScreen}
+                            options={{
+                                presentation: 'modal',
+                                gestureEnabled: true,
+                            }}
+                        />
+                        <RootStack.Screen name="Settings" component={SettingsScreen} />
                     </>
                 ) : (
                     <RootStack.Screen name="Auth" component={AuthNavigator} />

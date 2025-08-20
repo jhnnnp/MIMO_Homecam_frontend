@@ -7,19 +7,20 @@ import {
     Alert,
     Dimensions,
     StatusBar,
-    Animated,
-    PanGestureHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppBar, LoadingState, ErrorState, Badge } from '../components';
-import { colors, typography, spacing, radius, elevation } from '../design/tokens';
+import { colors, spacing, radius, elevation } from '../../design/tokens';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/AppNavigator';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-interface LiveStreamScreenProps {
-    navigation: any;
+type ViewerLiveStreamScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'LiveStream'>;
+
+interface ViewerLiveStreamScreenProps {
+    navigation: ViewerLiveStreamScreenNavigationProp;
     route: {
         params: {
             cameraId: number;
@@ -28,7 +29,7 @@ interface LiveStreamScreenProps {
     };
 }
 
-export default function LiveStreamScreen({ navigation, route }: LiveStreamScreenProps) {
+export default function ViewerLiveStreamScreen({ navigation, route }: ViewerLiveStreamScreenProps) {
     const { cameraId, cameraName } = route.params;
     const [isLoading, setIsLoading] = useState(true);
     const [isConnected, setIsConnected] = useState(false);
@@ -36,17 +37,7 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [quality, setQuality] = useState<'480p' | '720p' | '1080p'>('720p');
     const [isRecording, setIsRecording] = useState(false);
-    const [connectionLatency, setConnectionLatency] = useState<number | null>(null);
     const [showControls, setShowControls] = useState(true);
-    const [streamStats, setStreamStats] = useState({
-        bitrate: '2.4 Mbps',
-        fps: 30,
-        buffering: false,
-    });
-
-    // Animation values
-    const controlsOpacity = new Animated.Value(1);
-    const recordingPulse = new Animated.Value(1);
 
     useEffect(() => {
         const connectStream = async () => {
@@ -54,14 +45,9 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
             setError(null);
 
             try {
+                // 실제로는 WebRTC 연결 로직
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 setIsConnected(true);
-                setConnectionLatency(150);
-                setStreamStats(prev => ({
-                    ...prev,
-                    bitrate: '2.4 Mbps',
-                    fps: 30,
-                }));
                 setIsLoading(false);
             } catch (err) {
                 setError('스트림 연결에 실패했습니다.');
@@ -70,54 +56,7 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
         };
 
         connectStream();
-
-        return () => {
-            // Cleanup WebRTC connection
-        };
     }, [cameraId]);
-
-    useEffect(() => {
-        if (showControls) {
-            Animated.timing(controlsOpacity, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-
-            const timer = setTimeout(() => {
-                setShowControls(false);
-            }, 5000);
-            return () => clearTimeout(timer);
-        } else {
-            Animated.timing(controlsOpacity, {
-                toValue: 0,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-        }
-    }, [showControls]);
-
-    useEffect(() => {
-        if (isRecording) {
-            const pulse = () => {
-                Animated.sequence([
-                    Animated.timing(recordingPulse, {
-                        toValue: 1.2,
-                        duration: 1000,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(recordingPulse, {
-                        toValue: 1,
-                        duration: 1000,
-                        useNativeDriver: true,
-                    }),
-                ]).start(pulse);
-            };
-            pulse();
-        } else {
-            recordingPulse.setValue(1);
-        }
-    }, [isRecording]);
 
     const handleRetryConnection = () => {
         setIsLoading(true);
@@ -133,10 +72,6 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
         const currentIndex = qualities.indexOf(quality);
         const nextQuality = qualities[(currentIndex + 1) % qualities.length];
         setQuality(nextQuality);
-
-        // Simulate bitrate change
-        const bitrates = { '480p': '1.2 Mbps', '720p': '2.4 Mbps', '1080p': '5.2 Mbps' };
-        setStreamStats(prev => ({ ...prev, bitrate: bitrates[nextQuality] }));
     };
 
     const handleToggleRecording = () => {
@@ -161,15 +96,6 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
         setShowControls(!showControls);
     };
 
-    const getQualityColor = (currentQuality: string) => {
-        switch (currentQuality) {
-            case '480p': return colors.warning;
-            case '720p': return colors.primary;
-            case '1080p': return colors.success;
-            default: return colors.textSecondary;
-        }
-    };
-
     if (isLoading) {
         return (
             <View style={styles.container}>
@@ -178,13 +104,17 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
                     style={styles.gradientBackground}
                 />
                 <SafeAreaView style={styles.safeArea}>
-                    <AppBar
-                        title={cameraName}
-                        showBackButton
-                        onBackPress={() => navigation.goBack()}
-                        variant="dark"
-                    />
-                    <LoadingState message="라이브 스트림 연결 중..." />
+                    <View style={styles.header}>
+                        <TouchableOpacity onPress={() => navigation.goBack()}>
+                            <Ionicons name="arrow-back" size={24} color={colors.surface} />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>{cameraName}</Text>
+                        <View style={styles.headerSpacer} />
+                    </View>
+                    <View style={styles.loadingContainer}>
+                        <Ionicons name="videocam" size={80} color={colors.surface} />
+                        <Text style={styles.loadingText}>라이브 스트림 연결 중...</Text>
+                    </View>
                 </SafeAreaView>
             </View>
         );
@@ -198,19 +128,21 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
                     style={styles.gradientBackground}
                 />
                 <SafeAreaView style={styles.safeArea}>
-                    <AppBar
-                        title={cameraName}
-                        showBackButton
-                        onBackPress={() => navigation.goBack()}
-                        variant="dark"
-                    />
-                    <ErrorState
-                        title="연결 실패"
-                        message={error}
-                        buttonText="다시 연결"
-                        onRetry={handleRetryConnection}
-                        icon="wifi-outline"
-                    />
+                    <View style={styles.header}>
+                        <TouchableOpacity onPress={() => navigation.goBack()}>
+                            <Ionicons name="arrow-back" size={24} color={colors.surface} />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>{cameraName}</Text>
+                        <View style={styles.headerSpacer} />
+                    </View>
+                    <View style={styles.errorContainer}>
+                        <Ionicons name="wifi-outline" size={80} color={colors.surface} />
+                        <Text style={styles.errorTitle}>연결 실패</Text>
+                        <Text style={styles.errorText}>{error}</Text>
+                        <TouchableOpacity style={styles.retryButton} onPress={handleRetryConnection}>
+                            <Text style={styles.retryButtonText}>다시 연결</Text>
+                        </TouchableOpacity>
+                    </View>
                 </SafeAreaView>
             </View>
         );
@@ -225,12 +157,15 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
 
             {!isFullscreen && (
                 <SafeAreaView style={styles.safeArea}>
-                    <AppBar
-                        title={cameraName}
-                        showBackButton
-                        onBackPress={() => navigation.goBack()}
-                        variant="dark"
-                    />
+                    <View style={styles.header}>
+                        <TouchableOpacity onPress={() => navigation.goBack()}>
+                            <Ionicons name="arrow-back" size={24} color={colors.surface} />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>{cameraName}</Text>
+                        <TouchableOpacity onPress={handleQualityChange}>
+                            <Text style={styles.qualityText}>{quality}</Text>
+                        </TouchableOpacity>
+                    </View>
                 </SafeAreaView>
             )}
 
@@ -256,29 +191,14 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
                         <View style={styles.streamInfo}>
                             <Text style={styles.streamTitle}>{cameraName}</Text>
                             <Text style={styles.streamSubtitle}>라이브 스트림</Text>
-
-                            <View style={styles.streamMetrics}>
-                                <View style={styles.metricItem}>
-                                    <View style={styles.statusDot} />
-                                    <Text style={styles.metricText}>LIVE</Text>
-                                </View>
-                                <View style={styles.metricSeparator} />
-                                <View style={styles.metricItem}>
-                                    <Text style={styles.metricText}>{streamStats.bitrate}</Text>
-                                </View>
-                                <View style={styles.metricSeparator} />
-                                <View style={styles.metricItem}>
-                                    <Text style={styles.metricText}>{streamStats.fps} FPS</Text>
-                                </View>
-                            </View>
                         </View>
                     </View>
                 </LinearGradient>
 
-                <Animated.View style={[styles.controlsOverlay, { opacity: controlsOpacity }]}>
-                    {/* Top Controls */}
-                    <View style={styles.topControls}>
-                        <View style={styles.topLeft}>
+                {showControls && (
+                    <View style={styles.controlsOverlay}>
+                        {/* Top Controls */}
+                        <View style={styles.topControls}>
                             {isFullscreen && (
                                 <TouchableOpacity
                                     style={styles.fullscreenBackButton}
@@ -291,80 +211,67 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
                                     <Ionicons name="arrow-back" size={24} color={colors.surface} />
                                 </TouchableOpacity>
                             )}
-                            <Badge
-                                type="success"
-                                variant="status"
-                                label={quality}
-                                style={[styles.qualityBadge, { backgroundColor: getQualityColor(quality) }]}
-                            />
-                        </View>
-
-                        <View style={styles.topRight}>
-                            {isRecording && (
-                                <Animated.View style={[styles.recordingIndicator, { transform: [{ scale: recordingPulse }] }]}>
-                                    <View style={styles.recordingDot} />
-                                    <Text style={styles.recordingText}>REC</Text>
-                                </Animated.View>
-                            )}
-                            {connectionLatency && (
-                                <View style={styles.latencyIndicator}>
-                                    <View style={styles.latencyDot} />
-                                    <Text style={styles.latencyText}>{connectionLatency}ms</Text>
-                                </View>
-                            )}
-                        </View>
-                    </View>
-
-                    {/* Bottom Controls */}
-                    <View style={styles.bottomControls}>
-                        <LinearGradient
-                            colors={['transparent', 'rgba(0,0,0,0.8)']}
-                            style={styles.controlsGradient}
-                        >
-                            <View style={styles.controlsContainer}>
-                                <TouchableOpacity
-                                    style={styles.controlButton}
-                                    onPress={handleQualityChange}
-                                >
-                                    <Ionicons name="settings-outline" size={24} color={colors.surface} />
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles.controlButton,
-                                        styles.recordButton,
-                                        isRecording && styles.recordButtonActive
-                                    ]}
-                                    onPress={handleToggleRecording}
-                                >
-                                    <Ionicons
-                                        name={isRecording ? 'stop' : 'radio-button-on'}
-                                        size={24}
-                                        color={colors.surface}
-                                    />
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.controlButton}
-                                    onPress={handleSnapshot}
-                                >
-                                    <Ionicons name="camera-outline" size={24} color={colors.surface} />
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.controlButton}
-                                    onPress={handleToggleFullscreen}
-                                >
-                                    <Ionicons
-                                        name={isFullscreen ? 'contract-outline' : 'expand-outline'}
-                                        size={24}
-                                        color={colors.surface}
-                                    />
-                                </TouchableOpacity>
+                            <View style={styles.topRight}>
+                                {isRecording && (
+                                    <View style={styles.recordingIndicator}>
+                                        <View style={styles.recordingDot} />
+                                        <Text style={styles.recordingText}>REC</Text>
+                                    </View>
+                                )}
                             </View>
-                        </LinearGradient>
+                        </View>
+
+                        {/* Bottom Controls */}
+                        <View style={styles.bottomControls}>
+                            <LinearGradient
+                                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                                style={styles.controlsGradient}
+                            >
+                                <View style={styles.controlsContainer}>
+                                    <TouchableOpacity
+                                        style={styles.controlButton}
+                                        onPress={handleQualityChange}
+                                    >
+                                        <Ionicons name="settings-outline" size={24} color={colors.surface} />
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.controlButton,
+                                            styles.recordButton,
+                                            isRecording && styles.recordButtonActive
+                                        ]}
+                                        onPress={handleToggleRecording}
+                                    >
+                                        <Ionicons
+                                            name={isRecording ? 'stop' : 'radio-button-on'}
+                                            size={24}
+                                            color={colors.surface}
+                                        />
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.controlButton}
+                                        onPress={handleSnapshot}
+                                    >
+                                        <Ionicons name="camera-outline" size={24} color={colors.surface} />
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.controlButton}
+                                        onPress={handleToggleFullscreen}
+                                    >
+                                        <Ionicons
+                                            name={isFullscreen ? 'contract-outline' : 'expand-outline'}
+                                            size={24}
+                                            color={colors.surface}
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+                            </LinearGradient>
+                        </View>
                     </View>
-                </Animated.View>
+                )}
             </TouchableOpacity>
 
             {!isFullscreen && (
@@ -380,9 +287,9 @@ export default function LiveStreamScreen({ navigation, route }: LiveStreamScreen
                                 <View style={styles.statusDetails}>
                                     <Text style={styles.statusDetail}>{quality}</Text>
                                     <Text style={styles.statusSeparator}>•</Text>
-                                    <Text style={styles.statusDetail}>{connectionLatency}ms</Text>
+                                    <Text style={styles.statusDetail}>150ms</Text>
                                     <Text style={styles.statusSeparator}>•</Text>
-                                    <Text style={styles.statusDetail}>{streamStats.bitrate}</Text>
+                                    <Text style={styles.statusDetail}>2.4 Mbps</Text>
                                 </View>
                             </View>
                         </View>
@@ -441,6 +348,70 @@ const styles = StyleSheet.create({
     safeArea: {
         zIndex: 10,
     },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: colors.surface,
+    },
+    headerSpacer: {
+        width: 24,
+    },
+    qualityText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.surface,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        fontSize: 16,
+        color: colors.surface,
+        marginTop: spacing.lg,
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: spacing.xl,
+    },
+    errorTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: colors.surface,
+        marginTop: spacing.lg,
+        marginBottom: spacing.sm,
+    },
+    errorText: {
+        fontSize: 16,
+        color: colors.surface + 'CC',
+        textAlign: 'center',
+        marginBottom: spacing.xl,
+    },
+    retryButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+        borderRadius: radius.lg,
+    },
+    retryButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.surface,
+    },
     videoContainer: {
         flex: 1,
         position: 'relative',
@@ -477,45 +448,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     streamTitle: {
-        ...typography.h1,
-        color: colors.surface,
+        fontSize: 24,
         fontWeight: '700',
+        color: colors.surface,
         marginBottom: spacing.sm,
     },
     streamSubtitle: {
-        ...typography.bodyLg,
-        color: colors.primaryLight,
-        marginBottom: spacing.lg,
-    },
-    streamMetrics: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        borderRadius: radius.full,
-    },
-    metricItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-    },
-    metricSeparator: {
-        width: 1,
-        height: 12,
-        backgroundColor: colors.surface + '40',
-        marginHorizontal: spacing.sm,
-    },
-    metricText: {
-        ...typography.caption,
-        color: colors.surface,
-        fontWeight: '600',
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: colors.success,
+        fontSize: 16,
+        color: colors.surface + 'CC',
     },
 
     // Controls Overlay
@@ -534,11 +474,6 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
         paddingTop: spacing.xl,
     },
-    topLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-    },
     fullscreenBackButton: {
         width: 44,
         height: 44,
@@ -546,10 +481,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.7)',
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    qualityBadge: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
     },
     topRight: {
         flexDirection: 'row',
@@ -572,29 +503,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.surface,
     },
     recordingText: {
-        ...typography.caption,
+        fontSize: 12,
         color: colors.surface,
         fontWeight: '700',
-    },
-    latencyIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.full,
-        gap: spacing.xs,
-    },
-    latencyDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: colors.success,
-    },
-    latencyText: {
-        ...typography.caption,
-        color: colors.surface,
-        fontWeight: '600',
     },
     bottomControls: {
         padding: spacing.lg,
@@ -654,9 +565,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.success,
     },
     statusText: {
-        ...typography.h3,
-        color: colors.text,
+        fontSize: 16,
         fontWeight: '600',
+        color: colors.text,
     },
     statusDetails: {
         flexDirection: 'row',
@@ -665,12 +576,12 @@ const styles = StyleSheet.create({
         marginLeft: 'auto',
     },
     statusDetail: {
-        ...typography.caption,
+        fontSize: 12,
         color: colors.textSecondary,
         fontWeight: '600',
     },
     statusSeparator: {
-        ...typography.caption,
+        fontSize: 12,
         color: colors.divider,
     },
     quickActions: {
@@ -689,13 +600,13 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.primaryLight,
+        backgroundColor: colors.primary + '20',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: spacing.sm,
     },
     quickActionText: {
-        ...typography.caption,
+        fontSize: 12,
         color: colors.text,
         fontWeight: '600',
         textAlign: 'center',

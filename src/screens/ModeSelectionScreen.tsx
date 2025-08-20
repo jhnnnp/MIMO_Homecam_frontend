@@ -1,164 +1,248 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    Dimensions,
     StatusBar,
+    Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, typography, spacing, radius, elevation } from '../design/tokens';
+import { colors, spacing, radius, elevation } from '../design/tokens';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+// HapticFeedback 안전한 import
+let Haptics: any = null;
+try {
+    Haptics = require('expo-haptics');
+} catch (error) {
+    console.log('expo-haptics not available');
+}
+
+type ModeSelectionScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ModeSelection'>;
 
 interface ModeSelectionScreenProps {
-    navigation: any;
+    navigation: ModeSelectionScreenNavigationProp;
 }
+
+interface ModeCardProps {
+    title: string;
+    description: string;
+    icon: string;
+    features: Array<{ icon: string; text: string; color: string }>;
+    gradientColors: [string, string];
+    onPress: () => void;
+    isSelected: boolean;
+    showDevelopmentBadge?: boolean;
+}
+
+const ModeCard: React.FC<ModeCardProps> = ({
+    title,
+    description,
+    icon,
+    features,
+    gradientColors,
+    onPress,
+    isSelected,
+    showDevelopmentBadge = false,
+}) => {
+    return (
+        <TouchableOpacity
+            style={[
+                styles.modeCard,
+                {
+                    borderColor: isSelected ? colors.primary : colors.divider,
+                    borderWidth: isSelected ? 2 : 1,
+                }
+            ]}
+            onPress={onPress}
+            activeOpacity={0.8}
+        >
+            <LinearGradient
+                colors={isSelected
+                    ? [gradientColors[0] + '15', gradientColors[1] + '08']
+                    : [colors.surface, colors.surfaceAlt]
+                }
+                style={styles.modeCardGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            >
+                {/* Header Section */}
+                <View style={styles.cardHeader}>
+                    <View style={styles.iconSection}>
+                        <LinearGradient
+                            colors={isSelected ? gradientColors : [colors.primary + '20', colors.primary + '10']}
+                            style={styles.iconContainer}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                        >
+                            <Ionicons
+                                name={icon as any}
+                                size={28}
+                                color={isSelected ? colors.surface : colors.primary}
+                            />
+                        </LinearGradient>
+                        {isSelected && (
+                            <View style={styles.selectedIndicator}>
+                                <Ionicons name="checkmark" size={14} color={colors.surface} />
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.titleSection}>
+                        <View style={styles.titleRow}>
+                            <Text style={[styles.modeTitle, isSelected && styles.modeTitleSelected]}>
+                                {title}
+                            </Text>
+                            {showDevelopmentBadge && (
+                                <View style={styles.developmentBadge}>
+                                    <Text style={styles.developmentText}>개발 중</Text>
+                                </View>
+                            )}
+                        </View>
+                        <Text style={[styles.modeDescription, isSelected && styles.modeDescriptionSelected]}>
+                            {description}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Features Section */}
+                <View style={styles.featuresSection}>
+                    {features.map((feature, index) => (
+                        <View key={index} style={styles.featureItem}>
+                            <View style={[
+                                styles.featureIcon,
+                                {
+                                    backgroundColor: isSelected
+                                        ? feature.color + '20'
+                                        : colors.surfaceAlt
+                                }
+                            ]}>
+                                <Ionicons
+                                    name={feature.icon as any}
+                                    size={16}
+                                    color={isSelected ? feature.color : colors.textSecondary}
+                                />
+                            </View>
+                            <Text style={[styles.featureText, isSelected && styles.featureTextSelected]}>
+                                {feature.text}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            </LinearGradient>
+        </TouchableOpacity>
+    );
+};
 
 export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenProps) {
     const [selectedMode, setSelectedMode] = useState<'viewer' | 'camera' | null>(null);
 
-    const handleModeSelect = (mode: 'viewer' | 'camera') => {
+    const handleModeSelect = useCallback((mode: 'viewer' | 'camera') => {
         setSelectedMode(mode);
+    }, []);
 
-        // 모드에 따라 다른 화면으로 이동
-        if (mode === 'viewer') {
-            navigation.replace('Main'); // 뷰어 모드 - 메인 화면
-        } else {
-            navigation.replace('CameraMode'); // 카메라 모드 - 카메라 전용 화면
+    const handleContinue = useCallback(() => {
+        if (!selectedMode) return;
+
+        if (Platform.OS === 'ios' && Haptics) {
+            try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            } catch (error) {
+                console.log('Haptic feedback failed');
+            }
         }
-    };
+
+        if (selectedMode === 'viewer') {
+            navigation.replace('ViewerMode');
+        } else if (selectedMode === 'camera') {
+            navigation.replace('CameraMode');
+        }
+    }, [selectedMode, navigation]);
+
+    const viewerFeatures = [
+        { icon: 'videocam-outline', text: '실시간 영상 확인', color: colors.primary },
+        { icon: 'play-circle-outline', text: '저장된 영상 재생', color: colors.primary },
+        { icon: 'notifications-outline', text: '이벤트 알림 수신', color: colors.primary },
+    ];
+
+    const cameraFeatures = [
+        { icon: 'record-circle-outline', text: '자동 영상 녹화', color: colors.accent },
+        { icon: 'wifi-outline', text: '실시간 영상 전송', color: colors.accent },
+        { icon: 'qr-code-outline', text: '연결 QR 코드', color: colors.accent },
+    ];
 
     return (
         <>
             <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
             <View style={styles.container}>
-                {/* Background Gradient */}
                 <LinearGradient
                     colors={[colors.background, colors.surfaceAlt]}
-                    style={styles.gradientBackground}
+                    style={styles.backgroundGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                 />
 
-                {/* Floating Elements */}
-                <View style={styles.floatingElement1} />
-                <View style={styles.floatingElement2} />
-                <View style={styles.floatingElement3} />
-
                 <SafeAreaView style={styles.safeArea}>
-                    {/* Header */}
+                    {/* Header Section */}
                     <View style={styles.header}>
-                        <Text style={styles.title}>MIMO</Text>
                         <Text style={styles.subtitle}>사용 모드를 선택해주세요</Text>
                     </View>
 
                     {/* Mode Selection Cards */}
                     <View style={styles.modeContainer}>
-                        {/* Viewer Mode Card */}
-                        <TouchableOpacity
-                            style={[
-                                styles.modeCard,
-                                selectedMode === 'viewer' && styles.modeCardSelected
-                            ]}
+                        <ModeCard
+                            title="뷰어 모드"
+                            description="다른 기기의 카메라 영상을 실시간으로 확인하고 녹화된 영상을 재생할 수 있습니다"
+                            icon="eye-outline"
+                            features={viewerFeatures}
+                            gradientColors={[colors.primary, '#4A5F5D']}
                             onPress={() => handleModeSelect('viewer')}
-                            activeOpacity={0.8}
-                        >
-                            <LinearGradient
-                                colors={selectedMode === 'viewer'
-                                    ? [colors.primary + '20', colors.primaryLight + '20']
-                                    : [colors.surface, colors.surfaceAlt]
-                                }
-                                style={styles.modeCardGradient}
-                            >
-                                <View style={styles.modeIconContainer}>
-                                    <LinearGradient
-                                        colors={[colors.primary, colors.accent]}
-                                        style={styles.modeIcon}
-                                    >
-                                        <Ionicons name="eye-outline" size={48} color={colors.surface} />
-                                    </LinearGradient>
-                                </View>
+                            isSelected={selectedMode === 'viewer'}
+                        />
 
-                                <Text style={styles.modeTitle}>뷰어 모드</Text>
-                                <Text style={styles.modeDescription}>
-                                    공기계 카메라의 영상을 실시간으로 확인하고 녹화된 영상을 재생합니다
-                                </Text>
-
-                                <View style={styles.modeFeatures}>
-                                    <View style={styles.featureItem}>
-                                        <Ionicons name="videocam-outline" size={16} color={colors.primary} />
-                                        <Text style={styles.featureText}>실시간 스트리밍</Text>
-                                    </View>
-                                    <View style={styles.featureItem}>
-                                        <Ionicons name="play-circle-outline" size={16} color={colors.primary} />
-                                        <Text style={styles.featureText}>녹화 영상 재생</Text>
-                                    </View>
-                                    <View style={styles.featureItem}>
-                                        <Ionicons name="notifications-outline" size={16} color={colors.primary} />
-                                        <Text style={styles.featureText}>이벤트 알림</Text>
-                                    </View>
-                                </View>
-                            </LinearGradient>
-                        </TouchableOpacity>
-
-                        {/* Camera Mode Card */}
-                        <TouchableOpacity
-                            style={[
-                                styles.modeCard,
-                                selectedMode === 'camera' && styles.modeCardSelected
-                            ]}
+                        <ModeCard
+                            title="홈캠 모드"
+                            description="이 기기를 카메라로 사용하여 영상을 녹화하고 다른 기기로 스트리밍할 수 있습니다"
+                            icon="camera-outline"
+                            features={cameraFeatures}
+                            gradientColors={[colors.accent, '#E6B85C']}
                             onPress={() => handleModeSelect('camera')}
-                            activeOpacity={0.8}
-                        >
-                            <LinearGradient
-                                colors={selectedMode === 'camera'
-                                    ? [colors.accent + '20', colors.warning + '20']
-                                    : [colors.surface, colors.surfaceAlt]
-                                }
-                                style={styles.modeCardGradient}
-                            >
-                                <View style={styles.modeIconContainer}>
-                                    <LinearGradient
-                                        colors={[colors.accent, colors.warning]}
-                                        style={styles.modeIcon}
-                                    >
-                                        <Ionicons name="camera-outline" size={48} color={colors.surface} />
-                                    </LinearGradient>
-                                </View>
-
-                                <Text style={styles.modeTitle}>카메라 모드</Text>
-                                <Text style={styles.modeDescription}>
-                                    이 기기를 홈캠으로 사용하여 영상을 녹화하고 스트리밍합니다
-                                </Text>
-
-                                <View style={styles.modeFeatures}>
-                                    <View style={styles.featureItem}>
-                                        <Ionicons name="record-circle-outline" size={16} color={colors.accent} />
-                                        <Text style={styles.featureText}>자동 녹화</Text>
-                                    </View>
-                                    <View style={styles.featureItem}>
-                                        <Ionicons name="wifi-outline" size={16} color={colors.accent} />
-                                        <Text style={styles.featureText}>실시간 스트리밍</Text>
-                                    </View>
-                                    <View style={styles.featureItem}>
-                                        <Ionicons name="qr-code-outline" size={16} color={colors.accent} />
-                                        <Text style={styles.featureText}>연결 코드 제공</Text>
-                                    </View>
-                                </View>
-                            </LinearGradient>
-                        </TouchableOpacity>
+                            isSelected={selectedMode === 'camera'}
+                            showDevelopmentBadge={true}
+                        />
                     </View>
+
+                    {/* Continue Button */}
+                    {selectedMode && (
+                        <View style={styles.continueButtonContainer}>
+                            <TouchableOpacity
+                                style={styles.continueButton}
+                                onPress={handleContinue}
+                                activeOpacity={0.8}
+                            >
+                                <LinearGradient
+                                    colors={[colors.primary, '#4A5F5D']}
+                                    style={styles.continueButtonGradient}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                >
+                                    <Text style={styles.continueButtonText}>계속하기</Text>
+                                    <Ionicons name="arrow-forward" size={20} color={colors.surface} />
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
                     {/* Info Section */}
                     <View style={styles.infoSection}>
                         <View style={styles.infoCard}>
-                            <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
+                            <Ionicons name="information-circle" size={18} color={colors.primary} />
                             <Text style={styles.infoText}>
-                                모드는 언제든지 설정에서 변경할 수 있습니다
+                                선택한 모드는 언제든지 설정에서 변경할 수 있습니다
                             </Text>
                         </View>
                     </View>
@@ -173,143 +257,189 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: colors.background,
     },
-    gradientBackground: {
+    backgroundGradient: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
     },
-    floatingElement1: {
-        position: 'absolute',
-        top: 100,
-        right: -30,
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: colors.accent + '30',
-        opacity: 0.6,
-    },
-    floatingElement2: {
-        position: 'absolute',
-        top: 300,
-        left: -40,
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: colors.primary + '20',
-        opacity: 0.4,
-    },
-    floatingElement3: {
-        position: 'absolute',
-        bottom: 150,
-        right: 20,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: colors.accent + '40',
-        opacity: 0.3,
-    },
     safeArea: {
         flex: 1,
     },
     header: {
         alignItems: 'center',
-        paddingTop: spacing['3xl'],
-        paddingBottom: spacing['2xl'],
-    },
-    title: {
-        fontSize: 42,
-        fontWeight: '800',
-        color: colors.primary,
-        marginBottom: spacing.sm,
-        letterSpacing: -1,
+        paddingTop: spacing.xl,
+        paddingBottom: spacing.lg,
+        paddingHorizontal: spacing.xl,
     },
     subtitle: {
         fontSize: 18,
-        color: colors.textSecondary,
+        color: colors.primary,
         textAlign: 'center',
         lineHeight: 24,
+        fontWeight: '600',
+        letterSpacing: 1,
+        fontFamily: Platform.OS === 'ios' ? 'AvenirNext-Regular' : 'sans-serif-light',
+        textShadowColor: colors.primary + '20',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     modeContainer: {
         flex: 1,
         paddingHorizontal: spacing.xl,
-        gap: spacing.xl,
+        gap: spacing.md,
+        justifyContent: 'center',
+        paddingVertical: spacing.md,
+        paddingBottom: spacing.xl,
     },
     modeCard: {
-        borderRadius: 24,
+        borderRadius: radius.xl,
         overflow: 'hidden',
-        ...elevation['3'],
-        borderWidth: 2,
-        borderColor: 'transparent',
-    },
-    modeCardSelected: {
-        borderColor: colors.primary,
-        ...elevation['4'],
-    },
-    modeCardGradient: {
-        padding: spacing['2xl'],
-        alignItems: 'center',
-    },
-    modeIconContainer: {
-        marginBottom: spacing.xl,
-    },
-    modeIcon: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        alignItems: 'center',
-        justifyContent: 'center',
         ...elevation['2'],
     },
+    modeCardGradient: {
+        padding: spacing.md,
+        minHeight: 140,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: spacing.lg,
+    },
+    iconSection: {
+        position: 'relative',
+        marginRight: spacing.lg,
+    },
+    iconContainer: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    selectedIndicator: {
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    titleSection: {
+        flex: 1,
+    },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.xs,
+    },
     modeTitle: {
-        fontSize: 24,
-        fontWeight: '700',
+        fontSize: 22,
+        fontWeight: '800',
         color: colors.text,
-        marginBottom: spacing.md,
-        textAlign: 'center',
+        letterSpacing: -0.5,
+    },
+    modeTitleSelected: {
+        color: colors.primary,
     },
     modeDescription: {
-        fontSize: 16,
+        fontSize: 15,
         color: colors.textSecondary,
-        textAlign: 'center',
         lineHeight: 22,
-        marginBottom: spacing.xl,
-        paddingHorizontal: spacing.md,
+        fontWeight: '400',
     },
-    modeFeatures: {
+    modeDescriptionSelected: {
+        color: colors.text,
+        fontWeight: '500',
+    },
+    featuresSection: {
         gap: spacing.sm,
-        width: '100%',
     },
     featureItem: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        paddingHorizontal: spacing.md,
+    },
+    featureIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     featureText: {
         fontSize: 14,
         color: colors.text,
         fontWeight: '500',
+        flex: 1,
+        lineHeight: 20,
+    },
+    featureTextSelected: {
+        fontWeight: '600',
+    },
+    continueButtonContainer: {
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.xl,
+        paddingBottom: spacing.sm,
+        marginTop: 'auto',
+    },
+    continueButton: {
+        borderRadius: radius.lg,
+        overflow: 'hidden',
+        ...elevation['2'],
+    },
+    continueButtonGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.xl,
+        gap: spacing.sm,
+    },
+    continueButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: colors.surface,
+        letterSpacing: 0.5,
     },
     infoSection: {
         paddingHorizontal: spacing.xl,
-        paddingBottom: spacing.xl,
+        paddingBottom: spacing.md,
     },
     infoCard: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        padding: spacing.lg,
-        backgroundColor: colors.primaryLight,
-        borderRadius: radius.lg,
+        padding: spacing.md,
+        backgroundColor: colors.surface,
+        borderRadius: radius.md,
         borderWidth: 1,
-        borderColor: colors.primary + '30',
+        borderColor: colors.primary + '10',
+        ...elevation['1'],
     },
     infoText: {
-        fontSize: 14,
+        fontSize: 13,
         color: colors.text,
         flex: 1,
-        lineHeight: 20,
+        lineHeight: 18,
+        fontWeight: '500',
+    },
+    developmentBadge: {
+        backgroundColor: colors.accent,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    developmentText: {
+        fontSize: 10,
+        color: colors.surface,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
     },
 }); 

@@ -7,22 +7,32 @@ import {
     TouchableOpacity,
     Switch,
     Alert,
-    Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../stores/authStore';
-import { AppBar, Card, Button } from '../components';
-import { colors, typography, spacing, radius, elevation } from '../design/tokens';
+import { colors, spacing, radius, elevation } from '../design/tokens';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
 
-const { width: screenWidth } = Dimensions.get('window');
+type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
 
 interface SettingsScreenProps {
-    navigation: any;
+    navigation: SettingsScreenNavigationProp;
 }
 
-const SettingItem = ({
+interface SettingItemProps {
+    icon: string;
+    title: string;
+    subtitle?: string;
+    rightElement?: React.ReactNode;
+    onPress?: () => void;
+    showArrow?: boolean;
+    iconColor?: string;
+}
+
+const SettingItem: React.FC<SettingItemProps> = ({
     icon,
     title,
     subtitle,
@@ -30,16 +40,6 @@ const SettingItem = ({
     onPress,
     showArrow = true,
     iconColor = colors.primary,
-    iconBgColor,
-}: {
-    icon: keyof typeof Ionicons.glyphMap;
-    title: string;
-    subtitle?: string;
-    rightElement?: React.ReactNode;
-    onPress?: () => void;
-    showArrow?: boolean;
-    iconColor?: string;
-    iconBgColor?: string;
 }) => (
     <TouchableOpacity
         style={styles.settingItem}
@@ -48,11 +48,8 @@ const SettingItem = ({
         activeOpacity={0.7}
     >
         <View style={styles.settingLeft}>
-            <View style={[
-                styles.iconContainer,
-                { backgroundColor: iconBgColor || iconColor + '20' }
-            ]}>
-                <Ionicons name={icon} size={20} color={iconColor} />
+            <View style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}>
+                <Ionicons name={icon as any} size={20} color={iconColor} />
             </View>
             <View style={styles.settingContent}>
                 <Text style={styles.settingTitle}>{title}</Text>
@@ -128,7 +125,14 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             />
 
             <SafeAreaView style={styles.safeArea}>
-                <AppBar title="설정" variant="transparent" />
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                        <Ionicons name="arrow-back" size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>설정</Text>
+                    <View style={styles.headerSpacer} />
+                </View>
 
                 <ScrollView
                     style={styles.scrollView}
@@ -136,7 +140,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Profile Card */}
-                    <Card style={styles.profileCard}>
+                    <View style={styles.profileCard}>
                         <LinearGradient
                             colors={[colors.primary + '10', colors.surface]}
                             style={styles.profileGradient}
@@ -174,12 +178,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                                 </TouchableOpacity>
                             </View>
                         </LinearGradient>
-                    </Card>
+                    </View>
 
                     {/* Account Settings */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>계정</Text>
-                        <Card style={styles.sectionCard}>
+                        <View style={styles.sectionCard}>
                             <SettingItem
                                 icon="person-outline"
                                 title="프로필 편집"
@@ -212,13 +216,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                                 showArrow={false}
                                 iconColor={colors.accent}
                             />
-                        </Card>
+                        </View>
                     </View>
 
                     {/* Notifications Settings */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>알림</Text>
-                        <Card style={styles.sectionCard}>
+                        <View style={styles.sectionCard}>
                             <SettingItem
                                 icon="notifications-outline"
                                 title="푸시 알림"
@@ -269,13 +273,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                                 showArrow={false}
                                 iconColor={colors.warning}
                             />
-                        </Card>
+                        </View>
                     </View>
 
                     {/* Video Settings */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>영상</Text>
-                        <Card style={styles.sectionCard}>
+                        <View style={styles.sectionCard}>
                             <SettingItem
                                 icon="videocam-outline"
                                 title="기본 화질"
@@ -315,13 +319,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                                 showArrow={false}
                                 iconColor={colors.success}
                             />
-                        </Card>
+                        </View>
                     </View>
 
                     {/* Support and Info */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>지원 및 정보</Text>
-                        <Card style={styles.sectionCard}>
+                        <View style={styles.sectionCard}>
                             <SettingItem
                                 icon="help-circle-outline"
                                 title="고객 지원"
@@ -351,14 +355,14 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                                 onPress={() => Alert.alert('MIMO 홈캠', '버전 1.0.0\n© 2024 MIMO Team')}
                                 iconColor={colors.textSecondary}
                             />
-                        </Card>
+                        </View>
                     </View>
 
                     {/* Account Management */}
                     <View style={styles.section}>
                         <Text style={styles.dangerTitle}>위험 구역</Text>
 
-                        <Card style={styles.dangerCard}>
+                        <View style={styles.dangerCard}>
                             <TouchableOpacity
                                 style={styles.dangerItem}
                                 onPress={handleLogout}
@@ -371,9 +375,9 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                                 </View>
                                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                             </TouchableOpacity>
-                        </Card>
+                        </View>
 
-                        <Card style={styles.dangerCard}>
+                        <View style={styles.dangerCard}>
                             <TouchableOpacity
                                 style={styles.dangerItem}
                                 onPress={handleDeleteAccount}
@@ -386,7 +390,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                                 </View>
                                 <Ionicons name="chevron-forward" size={16} color={colors.error} />
                             </TouchableOpacity>
-                        </Card>
+                        </View>
                     </View>
                 </ScrollView>
             </SafeAreaView>
@@ -409,6 +413,21 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
     },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: colors.text,
+    },
+    headerSpacer: {
+        width: 24,
+    },
     scrollView: {
         flex: 1,
     },
@@ -420,7 +439,7 @@ const styles = StyleSheet.create({
     // Profile Card
     profileCard: {
         marginBottom: spacing['2xl'],
-        padding: 0,
+        borderRadius: radius.lg,
         overflow: 'hidden',
         ...elevation['3'],
     },
@@ -457,8 +476,8 @@ const styles = StyleSheet.create({
         borderColor: colors.surface,
     },
     profileInitial: {
-        ...typography.h1,
-        color: colors.textOnPrimary,
+        fontSize: 32,
+        color: colors.surface,
         fontWeight: '800',
     },
     profileInfo: {
@@ -466,12 +485,12 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     profileName: {
-        ...typography.h2,
-        color: colors.text,
+        fontSize: 20,
         fontWeight: '700',
+        color: colors.text,
     },
     profileEmail: {
-        ...typography.body,
+        fontSize: 16,
         color: colors.textSecondary,
     },
     verifiedBadge: {
@@ -481,7 +500,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
     },
     verifiedText: {
-        ...typography.caption,
+        fontSize: 12,
         color: colors.success,
         fontWeight: '600',
     },
@@ -489,7 +508,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: colors.primaryLight,
+        backgroundColor: colors.primary + '20',
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -499,16 +518,17 @@ const styles = StyleSheet.create({
         marginBottom: spacing['2xl'],
     },
     sectionTitle: {
-        ...typography.h2,
-        color: colors.text,
+        fontSize: 18,
         fontWeight: '700',
+        color: colors.text,
         marginBottom: spacing.lg,
         paddingHorizontal: spacing.sm,
     },
     sectionCard: {
-        padding: 0,
-        ...elevation['2'],
         backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        overflow: 'hidden',
+        ...elevation['2'],
     },
 
     // Setting Items
@@ -537,12 +557,12 @@ const styles = StyleSheet.create({
         gap: spacing['2xs'],
     },
     settingTitle: {
-        ...typography.body,
-        color: colors.text,
+        fontSize: 16,
         fontWeight: '600',
+        color: colors.text,
     },
     settingSubtitle: {
-        ...typography.caption,
+        fontSize: 14,
         color: colors.textSecondary,
     },
     settingRight: {
@@ -562,18 +582,19 @@ const styles = StyleSheet.create({
 
     // Danger Zone
     dangerTitle: {
-        ...typography.h2,
-        color: colors.error,
+        fontSize: 18,
         fontWeight: '700',
+        color: colors.error,
         marginBottom: spacing.lg,
         paddingHorizontal: spacing.sm,
     },
     dangerCard: {
         marginBottom: spacing.md,
-        padding: 0,
+        backgroundColor: colors.error + '05',
+        borderRadius: radius.lg,
         borderWidth: 1,
         borderColor: colors.error + '20',
-        backgroundColor: colors.error + '05',
+        overflow: 'hidden',
     },
     dangerItem: {
         flexDirection: 'row',
@@ -587,7 +608,7 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     dangerText: {
-        ...typography.body,
+        fontSize: 16,
         color: colors.textSecondary,
         fontWeight: '600',
     },

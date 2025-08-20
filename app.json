@@ -22,6 +22,23 @@
       },
       "edgeToEdgeEnabled": true
     },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "카메라 접근 권한이 필요합니다.",
+          "microphonePermission": "마이크 접근 권한이 필요합니다."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "사진 저장 권한이 필요합니다.",
+          "savePhotosPermission": "사진 저장 권한이 필요합니다.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }
