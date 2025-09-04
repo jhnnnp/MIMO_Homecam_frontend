@@ -1,5 +1,5 @@
 import { ApiResponse, Settings } from '../types/api';
-import apiService from './api';
+import api from './api';
 
 export interface SettingsUpdateRequest {
     notificationEnabled?: boolean;

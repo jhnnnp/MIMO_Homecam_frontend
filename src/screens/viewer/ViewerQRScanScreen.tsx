@@ -65,38 +65,82 @@ export default function ViewerQRScanScreen({ navigation }: ViewerQRScanScreenPro
     };
 
     const handleManualInput = () => {
-        Alert.prompt(
-            "수동 연결",
-            "홈캠의 고유 ID를 입력하세요:\n\n(예: MIMO_1234567890_abc123)",
+        Alert.alert(
+            "연결 방법 선택",
+            "어떤 방법으로 연결하시겠습니까?",
             [
                 { text: "취소", style: "cancel" },
                 {
-                    text: "연결",
-                    onPress: async (cameraId) => {
-                        if (cameraId && cameraId.trim()) {
-                            const trimmedId = cameraId.trim();
-
-                            // ID 형식 검증
-                            if (!trimmedId.startsWith('MIMO_')) {
-                                Alert.alert("잘못된 ID", "올바른 홈캠 ID 형식이 아닙니다.\n\nID는 'MIMO_'로 시작해야 합니다.");
-                                return;
-                            }
-
-                            try {
-                                const success = await connectionActions.connectToCamera(trimmedId);
-                                if (success) {
-                                    navigation.replace("ViewerHome");
-                                }
-                            } catch (error) {
-                                Alert.alert("연결 실패", "해당 홈캠을 찾을 수 없습니다.\n\nID를 다시 확인해주세요.");
-                            }
-                        } else {
-                            Alert.alert("입력 오류", "홈캠 ID를 입력해주세요.");
-                        }
+                    text: "6자리 코드 입력",
+                    onPress: () => {
+                        Alert.prompt(
+                            "연결 코드 입력",
+                            "홈캠에서 표시된 6자리 코드를 입력하세요:",
+                            [
+                                { text: "취소", style: "cancel" },
+                                {
+                                    text: "연결",
+                                    onPress: async (code) => {
+                                        if (code && code.trim().length === 6 && /^\d{6}$/.test(code.trim())) {
+                                            try {
+                                                const success = await connectionActions.connectByCode(code.trim());
+                                                if (success) {
+                                                    navigation.replace("ViewerHome");
+                                                } else {
+                                                    Alert.alert("연결 실패", "올바른 연결 코드를 입력해주세요.");
+                                                }
+                                            } catch (error) {
+                                                Alert.alert("연결 실패", "해당 홈캠을 찾을 수 없습니다.");
+                                            }
+                                        } else {
+                                            Alert.alert("입력 오류", "6자리 숫자 코드를 입력해주세요.");
+                                        }
+                                    },
+                                },
+                            ],
+                            "plain-text"
+                        );
                     },
                 },
-            ],
-            "plain-text"
+                {
+                    text: "고급 ID 입력",
+                    onPress: () => {
+                        Alert.prompt(
+                            "홈캠 ID 입력",
+                            "홈캠의 고유 ID를 입력하세요:\n\n(예: MIMO_1234567890_abc123)",
+                            [
+                                { text: "취소", style: "cancel" },
+                                {
+                                    text: "연결",
+                                    onPress: async (cameraId) => {
+                                        if (cameraId && cameraId.trim()) {
+                                            const trimmedId = cameraId.trim();
+
+                                            // ID 형식 검증
+                                            if (!trimmedId.startsWith('MIMO_')) {
+                                                Alert.alert("잘못된 ID", "올바른 홈캠 ID 형식이 아닙니다.\n\nID는 'MIMO_'로 시작해야 합니다.");
+                                                return;
+                                            }
+
+                                            try {
+                                                const success = await connectionActions.connectToCamera(trimmedId);
+                                                if (success) {
+                                                    navigation.replace("ViewerHome");
+                                                }
+                                            } catch (error) {
+                                                Alert.alert("연결 실패", "해당 홈캠을 찾을 수 없습니다.\n\nID를 다시 확인해주세요.");
+                                            }
+                                        } else {
+                                            Alert.alert("입력 오류", "홈캠 ID를 입력해주세요.");
+                                        }
+                                    },
+                                },
+                            ],
+                            "plain-text"
+                        );
+                    },
+                },
+            ]
         );
     };
 

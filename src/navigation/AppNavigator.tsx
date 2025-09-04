@@ -10,16 +10,18 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ModeSelectionScreen from '../screens/ModeSelectionScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import WebSocketTestScreen from '../screens/WebSocketTestScreen';
 
 // Viewer Mode Screens
 import ViewerHomeScreen from '../screens/viewer/ViewerHomeScreen';
 import ViewerLiveStreamScreen from '../screens/viewer/ViewerLiveStreamScreen';
 import ViewerQRScanScreen from '../screens/viewer/ViewerQRScanScreen';
+import ViewerPinCodeScreen from '../screens/viewer/ViewerPinCodeScreen';
 
 // Camera Mode Screens
 import CameraHomeScreen from '../screens/camera/CameraHomeScreen';
 import CameraSettingsScreen from '../screens/camera/CameraSettingsScreen';
-import CameraQRCodeScreen from '../screens/camera/CameraQRCodeScreen';
+import CameraPinCodeScreen from '../screens/camera/CameraPinCodeScreen';
 
 // Recording Screens
 import RecordingListScreen from '../screens/RecordingListScreen';
@@ -38,12 +40,13 @@ export type RootStackParamList = {
     CameraMode: undefined;
     LiveStream: { cameraId: number; cameraName: string };
     CameraSettings: undefined;
-    CameraQRCode: undefined;
+    CameraPinCode: undefined;
     ViewerQRScan: undefined;
     Settings: undefined;
     RecordingList: undefined;
     MotionDetectionSettings: undefined;
     NotificationSettings: undefined;
+    WebSocketTest: undefined;
 };
 
 export type AuthStackParamList = {
@@ -56,13 +59,14 @@ export type ViewerStackParamList = {
     ViewerHome: undefined;
     LiveStream: { cameraId: number; cameraName: string };
     ViewerQRScan: undefined;
+    ViewerPinCode: undefined;
     Settings: undefined;
 };
 
 export type CameraStackParamList = {
     CameraHome: undefined;
     CameraSettings: undefined;
-    CameraQRCode: undefined;
+    CameraPinCode: undefined;
     Settings: undefined;
     RecordingList: undefined;
     MotionDetectionSettings: undefined;
@@ -116,6 +120,14 @@ function ViewerNavigator() {
                     gestureEnabled: true,
                 }}
             />
+            <ViewerStack.Screen
+                name="ViewerPinCode"
+                component={ViewerPinCodeScreen}
+                options={{
+                    presentation: 'modal',
+                    gestureEnabled: true,
+                }}
+            />
             <ViewerStack.Screen name="Settings" component={SettingsScreen} />
         </ViewerStack.Navigator>
     );
@@ -133,8 +145,8 @@ function CameraNavigator() {
             <CameraStack.Screen name="CameraHome" component={CameraHomeScreen} />
             <CameraStack.Screen name="CameraSettings" component={CameraSettingsScreen} />
             <CameraStack.Screen
-                name="CameraQRCode"
-                component={CameraQRCodeScreen}
+                name="CameraPinCode"
+                component={CameraPinCodeScreen}
                 options={{
                     presentation: 'modal',
                     gestureEnabled: true,
@@ -150,9 +162,9 @@ function CameraNavigator() {
 
 // Main App Navigator
 export default function AppNavigator() {
-    const { isAuthenticated } = useAuthStore();
+    const { isAuthenticated, user } = useAuthStore();
 
-    console.log('📱 AppNavigator render - isAuthenticated:', isAuthenticated);
+    console.log('📱 AppNavigator render - isAuthenticated:', isAuthenticated, 'user:', user ? '있음' : '없음');
 
     return (
         <NavigationContainer
@@ -187,8 +199,8 @@ export default function AppNavigator() {
                         />
                         <RootStack.Screen name="CameraSettings" component={CameraSettingsScreen} />
                         <RootStack.Screen
-                            name="CameraQRCode"
-                            component={CameraQRCodeScreen}
+                            name="CameraPinCode"
+                            component={CameraPinCodeScreen}
                             options={{
                                 presentation: 'modal',
                                 gestureEnabled: true,
@@ -206,6 +218,7 @@ export default function AppNavigator() {
                         <RootStack.Screen name="RecordingList" component={RecordingListScreen} />
                         <RootStack.Screen name="MotionDetectionSettings" component={MotionDetectionSettingsScreen} />
                         <RootStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+                        <RootStack.Screen name="WebSocketTest" component={WebSocketTestScreen} />
                     </>
                 ) : (
                     <RootStack.Screen name="Auth" component={AuthNavigator} />

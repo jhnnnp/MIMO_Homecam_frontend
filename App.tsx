@@ -1,67 +1,79 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
-
-import queryClient from './src/utils/queryClient';
-import { useAuthStore } from './src/stores/authStore';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppNavigator from './src/navigation/AppNavigator';
-import { LoadingState } from './src/components';
+import { networkUtils } from './src/utils/networkUtils';
+import { notificationService } from './src/services/notificationService';
+import { recordingService } from './src/services/recordingService';
+import { webrtcService } from './src/services/webrtcService';
+import { useAuthStore } from './src/stores/authStore';
+import { initializeConfig } from './src/config';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 5 * 60 * 1000, // 5분
+    },
+  },
+});
 
 export default function App() {
   const [isInitialized, setIsInitialized] = useState(false);
-  const { isLoading, initializeAuth } = useAuthStore();
+  const { initializeAuth } = useAuthStore();
 
-  // 앱 초기화
   useEffect(() => {
-    const initialize = async () => {
-      try {
-        console.log('🚀 Starting MIMO app initialization...');
-        await initializeAuth();
-        console.log('✅ MIMO app initialization completed');
-      } catch (error) {
-        console.log('⚠️ MIMO app initialization failed (backend not available):', error);
-        // 백엔드가 없어도 앱은 실행되어야 함
-      } finally {
-        setIsInitialized(true);
-        console.log('🏁 MIMO app is ready');
-      }
-    };
-
-    // 약간의 지연 후 초기화 (UI 렌더링 완료 대기)
-    const timer = setTimeout(initialize, 100);
-
-    return () => clearTimeout(timer);
+    initialize();
   }, []);
 
-  // 초기화 중이면 로딩 화면 표시
-  if (!isInitialized || isLoading) {
-    return (
-      <SafeAreaProvider>
-        <LoadingState
-          message="MIMO를 시작하는 중..."
-          overlay
-        />
-        <StatusBar style="dark" />
-      </SafeAreaProvider>
-    );
+  const initialize = async () => {
+    try {
+      console.log('🚀 MIMO 앱 초기화 시작...');
+
+      // 1. 네트워크 자동 디스커버리 초기화
+      await initializeConfig();
+      console.log('✅ 네트워크 자동 디스커버리 완료');
+
+      // 2. 네트워크 환경 변수 설정 (기존 방식도 유지)
+      await networkUtils.updateEnvironmentVariables();
+      console.log('✅ 네트워크 설정 완료');
+
+      // 3. 인증 초기화
+      await initializeAuth();
+      console.log('✅ 인증 초기화 완료');
+
+      // 4. 알림 서비스 초기화
+      await notificationService.setupNotificationCategories();
+      console.log('✅ 알림 서비스 초기화 완료');
+
+      // 5. WebRTC 서비스 초기화
+      // (카메라 참조는 각 화면에서 설정)
+      console.log('✅ WebRTC 서비스 준비 완료');
+
+      // 6. 녹화 서비스 초기화
+      // (카메라 참조는 각 화면에서 설정)
+      console.log('✅ 녹화 서비스 준비 완료');
+
+      setIsInitialized(true);
+      console.log('🎉 MIMO 앱 초기화 완료!');
+    } catch (error) {
+      console.error('❌ 앱 초기화 실패:', error);
+      setIsInitialized(true); // 에러가 있어도 앱은 실행
+    }
+  };
+
+  if (!isInitialized) {
+    return null; // 초기화 중에는 빈 화면
   }
 
-  console.log('🎯 Main App render - isInitialized:', isInitialized, 'isLoading:', isLoading);
-
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <StatusBar style="auto" />
         <AppNavigator />
-
-        {/* Toast 알림 */}
-        <Toast />
-
-        {/* 상태바 설정 */}
-        <StatusBar style="dark" />
-      </SafeAreaProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }
 

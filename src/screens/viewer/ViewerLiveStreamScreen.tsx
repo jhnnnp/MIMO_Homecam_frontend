@@ -203,7 +203,8 @@ export default function ViewerLiveStreamScreen({ route, navigation }: ViewerLive
                             </View>
                         )
                     )
-            </View>
+                    }
+                </View>
 
                 {/* 연결 상태 */}
                 <View style={styles.statusContainer}>

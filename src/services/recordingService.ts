@@ -1,7 +1,7 @@
-import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { Camera } from 'expo-camera';
-import { Alert } from 'react-native';
+import { Audio } from 'expo-av';
 
 export interface RecordingSession {
     id: string;
@@ -13,91 +13,120 @@ export interface RecordingSession {
     createdAt: Date;
     status: 'recording' | 'completed' | 'failed';
     thumbnailPath?: string;
+    metadata?: {
+        resolution: string;
+        frameRate: number;
+        bitrate: number;
+        audioEnabled: boolean;
+    };
 }
 
 export interface RecordingSettings {
-    quality: 'low' | 'medium' | 'high' | 'max';
-    maxDuration: number; // 초 단위
+    quality: '480p' | '720p' | '1080p';
+    frameRate: 24 | 30 | 60;
+    audioEnabled: boolean;
+    maxDuration: number; // 초 단위, 0 = 무제한
     autoSave: boolean;
-    includeAudio: boolean;
+    compression: 'low' | 'medium' | 'high';
 }
 
 class RecordingService {
     private activeRecordings: Map<string, RecordingSession> = new Map();
-    private recordingSettings: RecordingSettings = {
-        quality: 'high',
-        maxDuration: 3600, // 1시간
+    private camera: Camera | null = null;
+    private settings: RecordingSettings = {
+        quality: '720p',
+        frameRate: 30,
+        audioEnabled: true,
+        maxDuration: 0, // 무제한
         autoSave: true,
-        includeAudio: true,
+        compression: 'medium',
     };
 
-    // 녹화 설정 업데이트
-    updateSettings(settings: Partial<RecordingSettings>) {
-        this.recordingSettings = { ...this.recordingSettings, ...settings };
+    // 카메라 참조 설정
+    setCameraRef(camera: Camera) {
+        this.camera = camera;
     }
 
-    // 현재 설정 조회
+    // 녹화 설정 업데이트
+    updateSettings(newSettings: Partial<RecordingSettings>): void {
+        this.settings = { ...this.settings, ...newSettings };
+        console.log('⚙️ 녹화 설정 업데이트됨:', this.settings);
+    }
+
+    // 녹화 설정 조회
     getSettings(): RecordingSettings {
-        return { ...this.recordingSettings };
+        return { ...this.settings };
     }
 
     // 녹화 시작
-    async startRecording(
-        cameraRef: React.RefObject<Camera>,
-        cameraId: string
-    ): Promise<RecordingSession> {
+    async startRecording(cameraId: string): Promise<RecordingSession> {
         try {
-            // 권한 확인
-            const { status } = await MediaLibrary.requestPermissionsAsync();
-            if (status !== 'granted') {
-                throw new Error('미디어 라이브러리 접근 권한이 필요합니다.');
-            }
-
-            if (!cameraRef.current) {
+            if (!this.camera) {
                 throw new Error('카메라가 초기화되지 않았습니다.');
             }
-
-            // 녹화 세션 생성
-            const sessionId = `recording_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            const fileName = `MIMO_${cameraId}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.mp4`;
-            const filePath = `${FileSystem.documentDirectory}recordings/${fileName}`;
 
             // 녹화 디렉토리 생성
             await this.ensureRecordingDirectory();
 
-            // 녹화 품질 설정
-            const quality = this.getQualitySetting();
+            // 녹화 파일명 생성
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const fileName = `recording_${cameraId}_${timestamp}.mp4`;
+            const filePath = `${FileSystem.documentDirectory}recordings/${fileName}`;
 
-            console.log('🎬 녹화 시작:', fileName);
-
-            // 카메라 녹화 시작
-            const recording = await cameraRef.current.recordAsync({
-                quality,
-                maxDuration: this.recordingSettings.maxDuration,
-                mute: !this.recordingSettings.includeAudio,
-            });
-
-            // 녹화 세션 정보 생성
+            // 녹화 세션 생성
             const session: RecordingSession = {
-                id: sessionId,
+                id: `recording_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 cameraId,
                 fileName,
-                filePath: recording.uri,
-                duration: recording.duration || 0,
+                filePath,
+                duration: 0,
                 size: 0,
                 createdAt: new Date(),
                 status: 'recording',
+                metadata: {
+                    resolution: this.settings.quality,
+                    frameRate: this.settings.frameRate,
+                    bitrate: this.getBitrate(),
+                    audioEnabled: this.settings.audioEnabled,
+                },
             };
 
-            this.activeRecordings.set(sessionId, session);
+            // 카메라 녹화 시작
+            const recording = await this.camera.recordAsync({
+                quality: this.getVideoQuality(),
+                maxDuration: this.settings.maxDuration || undefined,
+                mute: !this.settings.audioEnabled,
+                codec: 'h264',
+                bitrate: this.getBitrate(),
+                frameRate: this.settings.frameRate,
+            });
 
-            // 녹화 완료 후 처리
-            await this.handleRecordingComplete(session, recording);
+            // 녹화 완료 처리
+            session.status = 'completed';
+            session.duration = recording.duration || 0;
+            session.size = recording.size || 0;
+
+            // 파일 정보 업데이트
+            const fileInfo = await FileSystem.getInfoAsync(filePath);
+            if (fileInfo.exists) {
+                session.size = fileInfo.size || 0;
+            }
+
+            // 썸네일 생성
+            await this.generateThumbnail(session);
+
+            // 자동 저장 설정된 경우 갤러리에 저장
+            if (this.settings.autoSave) {
+                await this.saveToGallery(session);
+            }
+
+            this.activeRecordings.set(session.id, session);
+            console.log('✅ 녹화 완료:', session.fileName);
 
             return session;
         } catch (error) {
             console.error('❌ 녹화 시작 실패:', error);
-            throw new Error(`녹화를 시작할 수 없습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+            throw new Error('녹화를 시작할 수 없습니다.');
         }
     }
 
@@ -109,73 +138,52 @@ class RecordingService {
                 throw new Error('녹화 세션을 찾을 수 없습니다.');
             }
 
-            console.log('🛑 녹화 중지:', session.fileName);
-
-            // 녹화 세션 상태 업데이트
-            session.status = 'completed';
-            this.activeRecordings.delete(sessionId);
-
-            // 파일 정보 업데이트
-            const fileInfo = await FileSystem.getInfoAsync(session.filePath);
-            if (fileInfo.exists) {
-                session.size = fileInfo.size || 0;
-            }
-
-            // 썸네일 생성
-            await this.generateThumbnail(session);
-
-            // 자동 저장 설정이 활성화된 경우 갤러리에 저장
-            if (this.recordingSettings.autoSave) {
-                await this.saveToGallery(session);
+            if (this.camera && session.status === 'recording') {
+                await this.camera.stopRecording();
+                session.status = 'completed';
+                console.log('🛑 녹화 중지됨:', session.fileName);
             }
 
             return session;
         } catch (error) {
             console.error('❌ 녹화 중지 실패:', error);
-            throw new Error(`녹화를 중지할 수 없습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+            return null;
         }
     }
 
-    // 모든 활성 녹화 중지
-    async stopAllRecordings(): Promise<RecordingSession[]> {
-        const stoppedSessions: RecordingSession[] = [];
-
-        for (const sessionId of this.activeRecordings.keys()) {
-            try {
-                const session = await this.stopRecording(sessionId);
-                if (session) {
-                    stoppedSessions.push(session);
-                }
-            } catch (error) {
-                console.error(`❌ 녹화 중지 실패 (${sessionId}):`, error);
-            }
-        }
-
-        return stoppedSessions;
-    }
-
-    // 녹화 완료 처리
-    private async handleRecordingComplete(session: RecordingSession, recording: any) {
+    // 스냅샷 촬영
+    async takeSnapshot(cameraId: string): Promise<string> {
         try {
-            // 파일 정보 업데이트
-            const fileInfo = await FileSystem.getInfoAsync(recording.uri);
-            if (fileInfo.exists) {
-                session.size = fileInfo.size || 0;
-                session.duration = recording.duration || 0;
+            if (!this.camera) {
+                throw new Error('카메라가 초기화되지 않았습니다.');
             }
 
-            // 썸네일 생성
-            await this.generateThumbnail(session);
+            // 스냅샷 디렉토리 생성
+            await this.ensureSnapshotDirectory();
 
-            // 자동 저장 설정이 활성화된 경우 갤러리에 저장
-            if (this.recordingSettings.autoSave) {
-                await this.saveToGallery(session);
-            }
+            // 스냅샷 파일명 생성
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const fileName = `snapshot_${cameraId}_${timestamp}.jpg`;
+            const filePath = `${FileSystem.documentDirectory}snapshots/${fileName}`;
 
-            console.log('✅ 녹화 완료:', session.fileName);
+            // 스냅샷 촬영
+            const photo = await this.camera.takePictureAsync({
+                quality: 0.8,
+                base64: false,
+                exif: true,
+            });
+
+            // 파일 이동
+            await FileSystem.moveAsync({
+                from: photo.uri,
+                to: filePath,
+            });
+
+            console.log('📸 스냅샷 촬영됨:', fileName);
+            return filePath;
         } catch (error) {
-            console.error('❌ 녹화 완료 처리 실패:', error);
-            session.status = 'failed';
+            console.error('❌ 스냅샷 촬영 실패:', error);
+            throw new Error('스냅샷을 촬영할 수 없습니다.');
         }
     }
 
@@ -282,29 +290,53 @@ class RecordingService {
 
         if (!dirInfo.exists) {
             await FileSystem.makeDirectoryAsync(recordingsDir, { intermediates: true });
+            console.log('📁 녹화 디렉토리 생성됨');
         }
     }
 
-    // 품질 설정 변환
-    private getQualitySetting(): any {
-        switch (this.recordingSettings.quality) {
-            case 'low':
-                return Camera.Constants.VideoQuality['480p'];
-            case 'medium':
-                return Camera.Constants.VideoQuality['720p'];
-            case 'high':
-                return Camera.Constants.VideoQuality['1080p'];
-            case 'max':
-                return Camera.Constants.VideoQuality['4k'];
-            default:
-                return Camera.Constants.VideoQuality['1080p'];
+    // 스냅샷 디렉토리 생성
+    private async ensureSnapshotDirectory(): Promise<void> {
+        const snapshotsDir = `${FileSystem.documentDirectory}snapshots/`;
+        const dirInfo = await FileSystem.getInfoAsync(snapshotsDir);
+
+        if (!dirInfo.exists) {
+            await FileSystem.makeDirectoryAsync(snapshotsDir, { intermediates: true });
+            console.log('📁 스냅샷 디렉토리 생성됨');
         }
     }
 
     // 파일명에서 카메라 ID 추출
     private extractCameraIdFromFileName(fileName: string): string {
-        const match = fileName.match(/MIMO_(.+?)_/);
+        const match = fileName.match(/recording_(.+?)_/);
         return match ? match[1] : 'unknown';
+    }
+
+    // 비디오 품질 설정
+    private getVideoQuality(): Camera.Constants.VideoQuality {
+        switch (this.settings.quality) {
+            case '480p':
+                return Camera.Constants.VideoQuality['480p'];
+            case '720p':
+                return Camera.Constants.VideoQuality['720p'];
+            case '1080p':
+                return Camera.Constants.VideoQuality['1080p'];
+            default:
+                return Camera.Constants.VideoQuality['720p'];
+        }
+    }
+
+    // 비트레이트 계산
+    private getBitrate(): number {
+        switch (this.settings.quality) {
+            case '480p':
+                return 1000000; // 1 Mbps
+            case '720p':
+                return 2000000; // 2 Mbps
+            case '1080p':
+                return 4000000; // 4 Mbps
+            default:
+                return 2000000; // 2 Mbps
+        }
     }
 
     // 활성 녹화 세션 조회
@@ -312,67 +344,33 @@ class RecordingService {
         return Array.from(this.activeRecordings.values());
     }
 
-    // 녹화 중인지 확인
-    isRecording(cameraId?: string): boolean {
-        if (cameraId) {
-            return Array.from(this.activeRecordings.values()).some(
-                session => session.cameraId === cameraId && session.status === 'recording'
+    // 특정 녹화 세션 조회
+    getRecording(sessionId: string): RecordingSession | undefined {
+        return this.activeRecordings.get(sessionId);
+    }
+
+    // 모든 녹화 중지
+    async stopAllRecordings(): Promise<void> {
+        try {
+            const activeSessions = this.getActiveRecordings().filter(
+                session => session.status === 'recording'
             );
-        }
-        return this.activeRecordings.size > 0;
-    }
 
-    // 저장 공간 사용량 조회
-    async getStorageUsage(): Promise<{ used: number; total: number }> {
-        try {
-            const recordingsDir = `${FileSystem.documentDirectory}recordings/`;
-            const dirInfo = await FileSystem.getInfoAsync(recordingsDir);
-
-            if (!dirInfo.exists) {
-                return { used: 0, total: 0 };
+            for (const session of activeSessions) {
+                await this.stopRecording(session.id);
             }
 
-            const files = await FileSystem.readDirectoryAsync(recordingsDir);
-            let totalSize = 0;
-
-            for (const fileName of files) {
-                const filePath = `${recordingsDir}${fileName}`;
-                const fileInfo = await FileSystem.getInfoAsync(filePath);
-                if (fileInfo.exists) {
-                    totalSize += fileInfo.size || 0;
-                }
-            }
-
-            // 전체 저장 공간은 디바이스에 따라 다름
-            return { used: totalSize, total: 0 };
+            console.log('🛑 모든 녹화 중지됨');
         } catch (error) {
-            console.error('❌ 저장 공간 사용량 조회 실패:', error);
-            return { used: 0, total: 0 };
+            console.error('❌ 모든 녹화 중지 실패:', error);
         }
     }
 
-    // 오래된 녹화 파일 정리
-    async cleanupOldRecordings(maxAge: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
-        try {
-            const recordings = await this.getRecordings();
-            const cutoffTime = Date.now() - maxAge;
-            let deletedCount = 0;
-
-            for (const recording of recordings) {
-                if (recording.createdAt.getTime() < cutoffTime) {
-                    const deleted = await this.deleteRecording(recording.id);
-                    if (deleted) {
-                        deletedCount++;
-                    }
-                }
-            }
-
-            console.log(`🧹 ${deletedCount}개의 오래된 녹화 파일 정리됨`);
-            return deletedCount;
-        } catch (error) {
-            console.error('❌ 오래된 녹화 파일 정리 실패:', error);
-            return 0;
-        }
+    // 리소스 정리
+    cleanup(): void {
+        this.camera = null;
+        this.activeRecordings.clear();
+        console.log('🧹 녹화 서비스 정리 완료');
     }
 }
 

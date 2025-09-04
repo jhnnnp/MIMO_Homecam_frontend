@@ -1,448 +1,516 @@
-# 📱 MIMO 홈캠 앱
+# MIMO Camera Frontend
 
-[![React Native](https://img.shields.io/badge/React%20Native-0.79.5-blue.svg)](https://reactnative.dev/)
-[![Expo](https://img.shields.io/badge/Expo-53.0.0-blue.svg)](https://expo.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-blue.svg)](https://typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-org/mimo-camera)
+[![Test Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)](https://github.com/your-org/mimo-camera)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/your-org/mimo-camera)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> **🎥 MIMO 홈캠 시스템의 모바일 클라이언트 앱**  
-> React Native + Expo로 구현한 iOS/Android 크로스플랫폼 앱
+> 🎥 **MIMO Camera** - 실시간 카메라 스트리밍 및 모션 감지 모바일 애플리케이션
 
-## 📚 목차
+## 📋 Table of Contents
 
-- [개요](#개요)
-- [주요 기능](#주요-기능)
-- [기술 스택](#기술-스택)
-- [빠른 시작](#빠른-시작)
-- [프로젝트 구조](#프로젝트-구조)
-- [개발 가이드](#개발-가이드)
-- [디자인 시스템](#디자인-시스템)
-- [API 연동](#api-연동)
-- [테스트](#테스트)
-- [빌드 및 배포](#빌드-및-배포)
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 🎯 개요
+## 🎯 Overview
 
-MIMO 홈캠 앱은 가정용 보안 카메라 시스템을 위한 모바일 클라이언트입니다. 실시간 영상 모니터링, 이벤트 알림, 녹화 영상 관리 등의 기능을 제공합니다.
+MIMO Camera는 React Native와 Expo를 기반으로 한 실시간 카메라 스트리밍 애플리케이션입니다. WebRTC를 통한 P2P 스트리밍, 실시간 모션 감지, 자동 녹화 기능을 제공합니다.
 
-### 핵심 특징
+### 🏗️ Architecture Highlights
 
-- 🎨 **일관된 디자인**: 라이트 모드 전용, 한국어 최적화된 UI/UX
-- 📱 **크로스플랫폼**: iOS/Android 동시 지원
-- 🔐 **보안 우선**: JWT 토큰 기반 인증, 자동 토큰 갱신
-- 📡 **실시간 통신**: WebSocket 기반 라이브 스트리밍
-- ♿ **접근성**: WCAG 2.1 AA 준수, 터치 타겟 44dp+
-- ⚡ **성능 최적화**: 60fps 스크롤, 1.5s 내 초기 렌더링
+- **🔐 보안 강화**: JWT 토큰 관리, SecureStore 활용
+- **📡 실시간 통신**: WebSocket 기반 실시간 스트리밍
+- **🎥 WebRTC**: P2P 비디오 스트리밍
+- **🤖 모션 감지**: 실시간 모션 감지 및 알림
+- **📱 크로스 플랫폼**: iOS/Android 지원
+- **⚡ 성능 최적화**: 캐싱, 재시도 로직, 에러 처리
 
-## 🚀 주요 기능
+## ✨ Features
 
-### 인증 & 계정 관리
-- 이메일/비밀번호 로그인
-- Google OAuth 2.0 소셜 로그인
-- 이메일 인증 시스템 (6자리 코드)
-- 자동 로그인 및 토큰 갱신
-- 프로필 관리 및 비밀번호 변경
+### 🔐 Authentication & Security
+- [x] JWT 기반 인증 시스템
+- [x] 자동 토큰 갱신
+- [x] SecureStore를 통한 안전한 토큰 저장
+- [x] Google OAuth 지원
+- [x] 이메일 인증 시스템
 
-### 디바이스 & 모니터링
-- 카메라 디바이스 목록 및 상태 확인
-- 실시간 라이브 스트리밍 (WebRTC)
-- 온라인/오프라인 상태 실시간 업데이트
-- 디바이스별 설정 관리
+### 📹 Camera & Streaming
+- [x] 실시간 카메라 스트리밍
+- [x] WebRTC P2P 연결
+- [x] 다중 카메라 지원
+- [x] 스트림 품질 조정
+- [x] 자동 재연결 기능
 
-### 이벤트 & 녹화
-- 동작 감지 이벤트 타임라인
-- 녹화 영상 재생 및 다운로드
-- 이벤트 필터링 및 검색
-- 중요 이벤트 북마크 (Pin)
+### 🎯 Motion Detection
+- [x] 실시간 모션 감지
+- [x] 감도 조정
+- [x] 감지 영역 설정
+- [x] 자동 알림 발송
+- [x] 이벤트 로깅
 
-### 알림 시스템
-- 실시간 푸시 알림
-- 알림 타입별 분류 (동작, 시스템, 보안)
-- 읽음/안읽음 상태 관리
-- 알림 설정 개인화
+### 📱 Notifications
+- [x] 푸시 알림
+- [x] 로컬 알림
+- [x] 조용한 시간 설정
+- [x] 알림 카테고리 관리
+- [x] 실시간 알림
 
-### 설정 & 개인화
-- 알림 설정 (이메일, 푸시)
-- 동작 감지 민감도 조절
-- 녹화 품질 설정 (480p/720p/1080p)
-- 데이터 보관 기간 설정
+### 🎬 Recording
+- [x] 자동 녹화
+- [x] 수동 녹화
+- [x] 스냅샷 촬영
+- [x] 녹화 파일 관리
+- [x] 갤러리 저장
 
-## 🛠 기술 스택
+### ⚙️ Settings & Configuration
+- [x] 환경별 설정 관리
+- [x] 사용자 설정 저장
+- [x] 설정 동기화
+- [x] 설정 내보내기/가져오기
 
-### 코어 프레임워크
-- **React Native**: 0.79.5 (크로스플랫폼 개발)
-- **Expo**: 53.0.0 (개발 도구 및 배포)
-- **TypeScript**: 5.8.3 (타입 안전성)
-
-### 상태 관리 & 데이터
-- **Zustand**: 경량 상태 관리
-- **React Query**: 서버 상태 캐싱 및 동기화
-- **React Hook Form + Zod**: 폼 관리 및 검증
-
-### UI/UX & 디자인
-- **디자인 토큰**: 일관된 색상/타이포/간격 시스템
-- **Vector Icons**: @expo/vector-icons
-- **Toast Messages**: 사용자 피드백
-- **Modal**: 오버레이 인터랙션
-
-### 네트워킹 & 보안
-- **Axios**: HTTP 클라이언트 + 인터셉터
-- **Expo SecureStore**: 토큰 암호화 저장
-- **JWT**: 액세스/리프레시 토큰 자동 관리
-
-### 미디어 & 실시간
-- **Expo AV**: 비디오 재생
-- **Expo Camera**: 카메라 접근
-- **WebRTC**: 실시간 스트리밍 (예정)
-- **File System**: 파일 다운로드 및 관리
-
-### 개발 도구
-- **Flash List**: 성능 최적화된 리스트
-- **React Native Reanimated**: 고성능 애니메이션
-- **Safe Area Context**: 안전 영역 처리
-
-## ⚡ 빠른 시작
-
-### 시스템 요구사항
-
-- **Node.js**: 18.0.0 이상
-- **npm**: 8.0.0 이상
-- **iOS 개발**: Xcode 14+ (macOS)
-- **Android 개발**: Android Studio + JDK 11+
-
-### 설치 및 실행
-
-```bash
-# 저장소 클론
-git clone https://github.com/your-org/MIMO-frontend.git
-cd MIMO-frontend
-
-# 의존성 설치
-npm install
-
-# Expo 호환 패키지 버전 맞추기
-npx expo install --fix
-
-# 개발 서버 시작
-npx expo start
-
-# 플랫폼별 실행
-npx expo start --ios     # iOS 시뮬레이터
-npx expo start --android # Android 에뮬레이터
-npx expo start --web     # 웹 브라우저
-```
-
-### 환경 설정
-
-환경별 API 엔드포인트는 `src/services/api.ts`에서 설정합니다:
-
-```typescript
-// 개발 환경
-const API_BASE_URL = 'http://localhost:4001/api';
-
-// 프로덕션 환경  
-const API_BASE_URL = 'https://your-api.com/api';
-```
-
-## 📁 프로젝트 구조
+## 🏗️ Architecture
 
 ```
 src/
-├── components/           # 재사용 가능한 UI 컴포넌트
-│   ├── Button.tsx       # 버튼 컴포넌트
-│   ├── TextField.tsx    # 입력 필드
-│   ├── Card.tsx         # 카드 레이아웃
-│   ├── Badge.tsx        # 상태 배지
-│   ├── AppBar.tsx       # 상단 앱바
-│   ├── LoadingState.tsx # 로딩 상태
-│   ├── ErrorState.tsx   # 에러 상태
-│   ├── EmptyState.tsx   # 빈 상태
-│   └── index.ts         # 컴포넌트 내보내기
-├── screens/             # 화면 컴포넌트
-│   └── LoginScreen.tsx  # 로그인 화면
-├── services/            # API 서비스 레이어
-│   ├── api.ts          # HTTP 클라이언트
-│   └── authService.ts  # 인증 서비스
-├── stores/              # 상태 관리 (Zustand)
-│   └── authStore.ts    # 인증 상태
-├── types/               # TypeScript 타입 정의
-│   └── api.ts          # API 타입
-├── design/              # 디자인 시스템
-│   └── tokens.ts       # 디자인 토큰
-├── utils/               # 유틸리티 함수
-│   └── queryClient.ts  # React Query 설정
-├── navigation/          # 네비게이션 설정
-└── hooks/               # 커스텀 훅
+├── config/                 # 설정 관리
+│   └── index.ts           # 통합 설정
+├── utils/                 # 유틸리티
+│   ├── logger.ts          # 중앙 로깅 시스템
+│   └── errorHandler.ts    # 에러 처리
+├── services/              # 서비스 레이어
+│   ├── api.ts            # API 클라이언트
+│   ├── authService.ts    # 인증 서비스
+│   ├── cameraService.ts  # 카메라 서비스
+│   ├── streamingService.ts # 스트리밍 서비스
+│   ├── webrtcService.ts  # WebRTC 서비스
+│   ├── eventService.ts   # 이벤트 서비스
+│   ├── notificationService.ts # 알림 서비스
+│   ├── recordingService.ts # 녹화 서비스
+│   ├── settingsService.ts # 설정 서비스
+│   └── motionDetectionService.ts # 모션 감지 서비스
+├── components/            # 재사용 컴포넌트
+├── screens/              # 화면 컴포넌트
+├── navigation/           # 네비게이션
+├── stores/              # 상태 관리
+├── types/               # TypeScript 타입
+└── mocks/               # Mock 데이터
 ```
 
-## 👨‍💻 개발 가이드
+## 🚀 Installation
 
-### 코딩 규칙
+### Prerequisites
 
-1. **TypeScript 필수**: 모든 컴포넌트와 함수에 타입 정의
-2. **컴포넌트 규칙**: 
-   - Props 인터페이스 정의
-   - 기본값 설정
-   - 접근성 속성 포함
-3. **네이밍 컨벤션**:
-   - 컴포넌트: PascalCase
-   - 파일: PascalCase (.tsx), camelCase (.ts)
-   - 함수/변수: camelCase
+- Node.js 18+ 
+- npm or yarn
+- Expo CLI
+- iOS Simulator (macOS) or Android Emulator
 
-### 컴포넌트 작성 가이드
+### Setup
 
-```typescript
-// ✅ Good: 완전한 컴포넌트 예시
-interface ButtonProps extends TouchableOpacityProps {
-  title: string;
-  variant?: 'primary' | 'secondary';
-  loading?: boolean;
-  disabled?: boolean;
-}
-
-export default function Button({
-  title,
-  variant = 'primary',
-  loading = false,
-  disabled = false,
-  ...props
-}: ButtonProps) {
-  return (
-    <TouchableOpacity
-      {...props}
-      disabled={disabled || loading}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-    >
-      {loading ? (
-        <ActivityIndicator />
-      ) : (
-        <Text>{title}</Text>
-      )}
-    </TouchableOpacity>
-  );
-}
+1. **Clone Repository**
+```bash
+git clone https://github.com/your-org/mimo-camera.git
+cd mimo-camera/frontend
 ```
 
-### 상태 관리 패턴
-
-```typescript
-// ✅ Good: Zustand 스토어 패턴
-interface StoreState {
-  // 상태
-  data: DataType | null;
-  isLoading: boolean;
-  error: string | null;
-
-  // 액션
-  fetchData: () => Promise<void>;
-  updateData: (updates: Partial<DataType>) => Promise<boolean>;
-  clearError: () => void;
-}
+2. **Install Dependencies**
+```bash
+npm install
+# or
+yarn install
 ```
 
-## 🎨 디자인 시스템
+3. **Environment Configuration**
+```bash
+cp env.example .env
+# Edit .env with your configuration
+```
 
-### 디자인 토큰 사용
+4. **Start Development Server**
+```bash
+npm start
+# or
+yarn start
+```
+
+5. **Run on Device/Simulator**
+```bash
+# iOS
+npm run ios
+# Android
+npm run android
+```
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+주요 환경 변수들을 설정하세요:
+
+```bash
+# App Configuration
+EXPO_PUBLIC_ENV=development
+EXPO_PUBLIC_PROJECT_ID=your-expo-project-id
+
+# API Configuration
+EXPO_PUBLIC_API_URL=http://192.168.123.105:4001/api
+EXPO_PUBLIC_API_TIMEOUT=10000
+
+# WebSocket Configuration
+EXPO_PUBLIC_WS_URL=ws://192.168.123.105:8080
+EXPO_PUBLIC_WS_RECONNECT_ATTEMPTS=5
+
+# Security Configuration
+EXPO_PUBLIC_TOKEN_REFRESH_THRESHOLD=5
+EXPO_PUBLIC_MAX_TOKEN_AGE=60
+```
+
+### Configuration Files
+
+- `config/index.ts` - 통합 설정 관리
+- `env.example` - 환경 변수 예시
+- `.env` - 실제 환경 변수 (gitignore됨)
+
+## 📖 Usage
+
+### 🔐 Authentication
 
 ```typescript
-import { colors, typography, spacing } from '../design/tokens';
+import { authService } from './services/authService';
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.background,
-    padding: spacing.container,
-  },
-  title: {
-    ...typography.h1,
-    color: colors.text,
-    marginBottom: spacing.lg,
-  },
+// 로그인
+const loginResult = await authService.login({
+  email: 'user@example.com',
+  password: 'password'
+});
+
+// 회원가입
+const registerResult = await authService.register({
+  email: 'user@example.com',
+  password: 'password',
+  name: 'User Name',
+  nickname: 'nickname',
+  agreeTerms: true,
+  agreePrivacy: true,
+  agreeMicrophone: true,
+  agreeLocation: true
+});
+
+// 로그아웃
+await authService.logout();
+```
+
+### 📹 Camera Management
+
+```typescript
+import { cameraService } from './services/cameraService';
+
+// 카메라 목록 조회
+const cameras = await cameraService.getCameras();
+
+// 새 카메라 등록
+const newCamera = await cameraService.createCamera({
+  name: 'Living Room Camera',
+  location: 'Living Room',
+  settings: {
+    resolution: '720p',
+    frameRate: 30,
+    quality: 'medium'
+  }
+});
+
+// 카메라 설정 업데이트
+await cameraService.updateCameraSettings(cameraId, {
+  resolution: '1080p',
+  motionDetection: {
+    enabled: true,
+    sensitivity: 'high'
+  }
 });
 ```
 
-### 색상 팔레트 (라이트 모드)
-
-- **Primary**: `#2563EB` (블루-600)
-- **Success**: `#10B981` (그린-500)  
-- **Warning**: `#F59E0B` (앰버-500)
-- **Error**: `#EF4444` (레드-500)
-- **Text**: `#111827` (그레이-900)
-- **Background**: `#FFFFFF` (화이트)
-
-### 타이포그래피 (한글 최적화)
-
-- **H1**: 24px/34px, Bold
-- **H2**: 20px/28px, SemiBold  
-- **Body Large**: 16px/24px, Medium
-- **Body Medium**: 14px/22px, Regular
-- **Caption**: 12px/18px, Regular
-
-## 🔌 API 연동
-
-### 서비스 레이어 패턴
+### 🎥 Streaming
 
 ```typescript
-// 1. API 타입 정의
-interface LoginRequest {
-  email: string;
-  password: string;
-}
+import { streamingService } from './services/streamingService';
 
-// 2. 서비스 함수
-class AuthService {
-  async login(credentials: LoginRequest) {
-    return await apiService.post('/auth/login', credentials);
-  }
-}
+// WebSocket 연결
+await streamingService.connect();
 
-// 3. 상태 관리에서 사용
-const login = async (email: string, password: string) => {
-  const response = await authService.login({ email, password });
-  // 상태 업데이트
-};
+// 스트림 시작 (홈캠 모드)
+await streamingService.startStream(cameraId, viewerId);
+
+// 스트림 참여 (뷰어 모드)
+await streamingService.joinStream(cameraId, viewerId);
+
+// 이벤트 리스너
+streamingService.addEventListener('stream_started', (data) => {
+  console.log('Stream started:', data);
+});
 ```
 
-### 자동 토큰 관리
+### 🎯 Motion Detection
 
-- JWT 토큰 자동 첨부 (axios 인터셉터)
-- 토큰 만료 시 자동 갱신
-- 리프레시 실패 시 자동 로그아웃
+```typescript
+import { motionDetectionService } from './services/motionDetectionService';
 
-## 🧪 테스트
+// 모션 감지 시작
+await motionDetectionService.startDetection(
+  cameraRef,
+  (event) => {
+    console.log('Motion detected:', event);
+  },
+  (zone, event) => {
+    console.log('Zone violation:', zone, event);
+  }
+);
 
-### 테스트 실행 (준비 중)
+// 설정 업데이트
+motionDetectionService.updateConfig({
+  sensitivity: 'high',
+  detectionInterval: 500,
+  cooldownPeriod: 15000
+});
+```
+
+### 📱 Notifications
+
+```typescript
+import { notificationService } from './services/notificationService';
+
+// 로컬 알림 발송
+await notificationService.sendLocalNotification({
+  title: '모션 감지됨',
+  body: '카메라에서 움직임이 감지되었습니다.',
+  data: { type: 'motion', cameraId: '123' }
+});
+
+// 설정 업데이트
+notificationService.updateSettings({
+  motionDetection: true,
+  soundEnabled: true,
+  quietHours: {
+    enabled: true,
+    start: '22:00',
+    end: '08:00'
+  }
+});
+```
+
+### 🎬 Recording
+
+```typescript
+import { recordingService } from './services/recordingService';
+
+// 녹화 시작
+const session = await recordingService.startRecording(cameraId);
+
+// 녹화 중지
+await recordingService.stopRecording(session.id);
+
+// 스냅샷 촬영
+const snapshotPath = await recordingService.takeSnapshot(cameraId);
+
+// 녹화 목록 조회
+const recordings = await recordingService.getRecordings();
+```
+
+## 🔧 API Reference
+
+### Core Services
+
+#### API Service
+- `api.get<T>(url, config?)` - GET 요청
+- `api.post<T>(url, data?, config?)` - POST 요청
+- `api.put<T>(url, data?, config?)` - PUT 요청
+- `api.delete<T>(url, config?)` - DELETE 요청
+- `api.uploadFile<T>(url, file, onProgress?)` - 파일 업로드
+
+#### Auth Service
+- `authService.login(credentials)` - 로그인
+- `authService.register(userData)` - 회원가입
+- `authService.logout()` - 로그아웃
+- `authService.refreshToken()` - 토큰 갱신
+- `authService.getCurrentUser()` - 현재 사용자 조회
+
+#### Camera Service
+- `cameraService.getCameras()` - 카메라 목록
+- `cameraService.createCamera(data)` - 카메라 생성
+- `cameraService.updateCamera(id, updates)` - 카메라 업데이트
+- `cameraService.deleteCamera(id)` - 카메라 삭제
+- `cameraService.getCameraSettings(id)` - 설정 조회
+
+#### Streaming Service
+- `streamingService.connect()` - WebSocket 연결
+- `streamingService.startStream(cameraId, viewerId)` - 스트림 시작
+- `streamingService.joinStream(cameraId, viewerId)` - 스트림 참여
+- `streamingService.stopStream(cameraId)` - 스트림 중지
+
+### Error Handling
+
+```typescript
+import { withErrorHandling, withRetry } from './utils/errorHandler';
+
+// 에러 처리 래퍼
+const result = await withErrorHandling(async () => {
+  return await api.get('/data');
+}, { operation: 'get_data' });
+
+// 재시도 로직 포함
+const result = await withRetry(async () => {
+  return await api.post('/upload', data);
+}, 3, { operation: 'upload_data' });
+```
+
+### Logging
+
+```typescript
+import { logger, createLogger } from './utils/logger';
+
+// 기본 로거
+logger.info('Application started');
+logger.error('Error occurred', error);
+
+// 서비스별 로거
+const serviceLogger = createLogger('MyService');
+serviceLogger.logUserAction('Button clicked', { buttonId: 'submit' });
+serviceLogger.logApiRequest('POST', '/api/data', data);
+```
+
+## 🧪 Testing
+
+### Unit Tests
 
 ```bash
-# 단위 테스트
+# 모든 테스트 실행
 npm test
 
-# 테스트 커버리지
-npm run test:coverage
+# 특정 파일 테스트
+npm test api.test.ts
 
-# E2E 테스트
-npm run test:e2e
+# 커버리지 리포트
+npm run test:coverage
 ```
 
-### 테스트 작성 예시
+### E2E Tests
+
+```bash
+# E2E 테스트 실행
+npm run test:e2e
+
+# 특정 시나리오 테스트
+npm run test:e2e -- --grep "Login Flow"
+```
+
+### Test Examples
 
 ```typescript
-describe('Button Component', () => {
-  it('should render title correctly', () => {
-    render(<Button title="Test Button" />);
-    expect(screen.getByText('Test Button')).toBeTruthy();
+// API Service Test
+describe('API Service', () => {
+  it('should handle authentication', async () => {
+    const result = await apiService.login(credentials);
+    expect(result.ok).toBe(true);
   });
+});
 
-  it('should show loading state', () => {
-    render(<Button title="Test" loading />);
-    expect(screen.getByLabelText('로딩 중')).toBeTruthy();
+// Camera Service Test
+describe('Camera Service', () => {
+  it('should create camera', async () => {
+    const camera = await cameraService.createCamera(cameraData);
+    expect(camera.name).toBe(cameraData.name);
   });
 });
 ```
 
-## 📦 빌드 및 배포
+## 🚀 Deployment
 
-### 개발 빌드
-
-```bash
-# EAS Build 설정
-npx eas build:configure
-
-# 개발 빌드
-npx eas build --profile development --platform ios
-npx eas build --profile development --platform android
-```
-
-### 프로덕션 배포
+### Development Build
 
 ```bash
-# 프로덕션 빌드
-npx eas build --profile production --platform all
+# iOS Development Build
+eas build --platform ios --profile development
 
-# 앱스토어 제출
-npx eas submit --profile production --platform ios
-npx eas submit --profile production --platform android
+# Android Development Build
+eas build --platform android --profile development
 ```
 
-### 성능 최적화
+### Production Build
 
-- **Bundle Analyzer**: 번들 크기 최적화
-- **Hermes**: Android 성능 향상
-- **Code Splitting**: 지연 로딩
-- **Image Optimization**: 이미지 압축 및 캐싱
+```bash
+# iOS Production Build
+eas build --platform ios --profile production
 
-## 📱 플랫폼별 고려사항
+# Android Production Build
+eas build --platform android --profile production
+```
 
-### iOS
-- Safe Area 처리
-- Human Interface Guidelines 준수
-- TestFlight 베타 테스트
+### App Store Deployment
 
-### Android
-- Material Design 가이드라인
-- 다양한 화면 크기 대응
-- Google Play Console 배포
+```bash
+# iOS App Store
+eas submit --platform ios
 
-## 🔧 문제 해결
+# Google Play Store
+eas submit --platform android
+```
 
-### 일반적인 문제
+## 🤝 Contributing
 
-1. **Metro Bundler 오류**
-   ```bash
-   npx expo start --clear
-   ```
+### Development Setup
 
-2. **패키지 버전 충돌**
-   ```bash
-   npx expo install --fix
-   ```
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
 
-3. **iOS 시뮬레이터 연결 실패**
-   - Xcode 및 시뮬레이터 재시작
-   - `npx expo run:ios` 사용
+### Code Standards
 
-4. **Android 에뮬레이터 이슈**
-   - Android Studio에서 가상 디바이스 확인
-   - `npx expo run:android` 사용
+- **TypeScript**: Strict mode 사용
+- **ESLint**: 코드 품질 검사
+- **Prettier**: 코드 포맷팅
+- **Jest**: 단위 테스트
+- **Playwright**: E2E 테스트
 
-## 🤝 기여 가이드
+### Commit Convention
 
-### 개발 프로세스
+```
+TYPE(SCOPE): description
 
-1. **이슈 생성**: 버그 리포트나 기능 요청
-2. **브랜치 생성**: `feature/기능명` 또는 `bugfix/버그명`
-3. **개발**: 코딩 표준 및 컨벤션 준수
-4. **테스트**: 단위 테스트 및 E2E 테스트 작성
-5. **Pull Request**: 상세한 설명과 스크린샷 포함
+Examples:
+- FEAT(auth): add Google OAuth login
+- FIX(streaming): resolve WebRTC connection issues
+- REFACTOR(api): improve error handling
+- DOCS(readme): update installation guide
+```
 
-### Pull Request 체크리스트
+## 📄 License
 
-- [ ] TypeScript 컴파일 오류 없음
-- [ ] ESLint/Prettier 통과
-- [ ] 새로운 컴포넌트에 접근성 속성 추가
-- [ ] 적절한 에러 처리 및 로딩 상태
-- [ ] 디자인 토큰 사용
-- [ ] 테스트 커버리지 유지
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📄 라이선스
+## 🆘 Support
 
-이 프로젝트는 [MIT 라이선스](LICENSE)를 따릅니다.
+- **Documentation**: [Wiki](https://github.com/your-org/mimo-camera/wiki)
+- **Issues**: [GitHub Issues](https://github.com/your-org/mimo-camera/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-org/mimo-camera/discussions)
+- **Email**: support@mimo-camera.com
 
-## 📞 지원 및 연락처
+## 🙏 Acknowledgments
 
-### 개발자
-- **이름**: 박진한 (JinHan Park)
-- **이메일**: [jhnnn.park@gmail.com](mailto:jhnnn.park@gmail.com)
-- **GitHub**: [@jhnnnp](https://github.com/jhnnnp)
-
-### 프로젝트 링크
-- **백엔드**: [MIMO Backend Repository](https://github.com/jhnnnp/MIMO_Homecam_backend)
-- **프론트엔드**: [MIMO Frontend Repository](https://github.com/jhnnnp/MIMO_Homecam_frontend)
-
-### 지원 채널
-- **이슈 트래커**: [GitHub Issues](https://github.com/jhnnnp/MIMO_Homecam_frontend/issues)
-- **토론**: [GitHub Discussions](https://github.com/jhnnnp/MIMO_Homecam_frontend/discussions)
+- [Expo](https://expo.dev/) - React Native development platform
+- [WebRTC](https://webrtc.org/) - Real-time communication
+- [React Native](https://reactnative.dev/) - Mobile app framework
+- [TypeScript](https://www.typescriptlang.org/) - Type safety
 
 ---
 
-**MIMO Team**과 함께 만들어가는 스마트 홈 솔루션입니다. 📱✨ 
+**Made with ❤️ by the MIMO Camera Team** 

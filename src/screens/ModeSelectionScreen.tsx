@@ -139,9 +139,9 @@ const ModeCard: React.FC<ModeCardProps> = ({
 };
 
 export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenProps) {
-    const [selectedMode, setSelectedMode] = useState<'viewer' | 'camera' | null>(null);
+    const [selectedMode, setSelectedMode] = useState<'viewer' | 'camera' | 'websocket' | null>(null);
 
-    const handleModeSelect = useCallback((mode: 'viewer' | 'camera') => {
+    const handleModeSelect = useCallback((mode: 'viewer' | 'camera' | 'websocket') => {
         setSelectedMode(mode);
     }, []);
 
@@ -160,6 +160,8 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
             navigation.replace('ViewerMode');
         } else if (selectedMode === 'camera') {
             navigation.replace('CameraMode');
+        } else if (selectedMode === 'websocket') {
+            navigation.navigate('WebSocketTest');
         }
     }, [selectedMode, navigation]);
 
@@ -173,6 +175,12 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
         { icon: 'radio-button-on', text: '자동 영상 녹화', color: colors.accent },
         { icon: 'wifi-outline', text: '실시간 영상 전송', color: colors.accent },
         { icon: 'qr-code-outline', text: '연결 QR 코드', color: colors.accent },
+    ];
+
+    const websocketFeatures = [
+        { icon: 'wifi-outline', text: '실시간 연결 테스트', color: colors.warning },
+        { icon: 'chatbubble-outline', text: '메시지 송수신', color: colors.warning },
+        { icon: 'analytics-outline', text: '통신 상태 모니터링', color: colors.warning },
     ];
 
     return (
@@ -212,6 +220,17 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
                             gradientColors={[colors.accent, '#E6B85C']}
                             onPress={() => handleModeSelect('camera')}
                             isSelected={selectedMode === 'camera'}
+                            showDevelopmentBadge={true}
+                        />
+
+                        <ModeCard
+                            title="웹소켓 테스트"
+                            description="실시간 통신 연결을 테스트하고 메시지 송수신을 확인할 수 있습니다"
+                            icon="bug-outline"
+                            features={websocketFeatures}
+                            gradientColors={[colors.warning, '#FF9500']}
+                            onPress={() => handleModeSelect('websocket')}
+                            isSelected={selectedMode === 'websocket'}
                             showDevelopmentBadge={true}
                         />
                     </View>

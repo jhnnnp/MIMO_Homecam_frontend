@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jhnnnnm.frontend"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,13 +28,11 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.ACCESS_MEDIA_LOCATION"
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "package": "com.jhnnnnm.frontend"
+      "package": "com.jhnnnnm.frontend",
+      "usesCleartextTraffic": true
     },
     "plugins": [
       [
@@ -50,10 +49,16 @@
           "savePhotosPermission": "사진 저장 권한이 필요합니다.",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      "expo-dev-client"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bc267aa8-3e70-4065-ac74-ed2fe280992b"
+      }
     }
   }
 }

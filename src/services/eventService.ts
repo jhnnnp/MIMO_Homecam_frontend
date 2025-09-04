@@ -1,6 +1,12 @@
 import { ApiResponse, Event, Recording } from '../types/api';
-import apiService from './api';
+import api from './api';
+import { createLogger } from '../utils/logger';
+import { withErrorHandling, createValidationError } from '../utils/errorHandler';
+import config from '../config';
 import eventMockData from '../mocks/eventData.json';
+
+// 이벤트 서비스 로거
+const eventLogger = createLogger('EventService');
 
 export interface EventFilters {
     cameraId?: number;

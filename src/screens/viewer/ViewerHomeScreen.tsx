@@ -6,11 +6,12 @@ import {
     TouchableOpacity,
     StatusBar,
     Alert,
+    Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, spacing, radius, elevation } from "../../design/tokens";
+import { colors, spacing, radius, elevation, typography } from "../../design/tokens";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/AppNavigator";
 import { useViewerConnection } from "../../hooks/useViewerConnection";
@@ -24,19 +25,62 @@ interface ViewerHomeScreenProps {
 export default function ViewerHomeScreen({ navigation }: ViewerHomeScreenProps) {
     const viewerId = `viewer_${Date.now()}`;
     const [connectionState, connectionActions] = useViewerConnection(viewerId);
-    const { connectedCamera, isConnected, error } = connectionState;
+    const { connectedCamera, isConnected, error, availableCameras } = connectionState;
+
+    // 연결된 카메라가 없으면 availableCameras에서 첫 번째 카메라 사용
+    const displayCamera = connectedCamera || (availableCameras.length > 0 ? availableCameras[0] : null);
+
+    // 애니메이션 값들
+    const [fadeAnim] = useState(new Animated.Value(0));
+    const [slideAnim] = useState(new Animated.Value(50));
+    const [pulseAnim] = useState(new Animated.Value(1));
+
+    useEffect(() => {
+        // 화면 진입 애니메이션
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 600,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 600,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        // 연결 상태에 따른 펄스 애니메이션
+        if (isConnected && connectedCamera) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, {
+                        toValue: 1.05,
+                        duration: 1000,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(pulseAnim, {
+                        toValue: 1,
+                        duration: 1000,
+                        useNativeDriver: true,
+                    }),
+                ])
+            ).start();
+        }
+    }, [isConnected, connectedCamera]);
 
     const handleStartStreaming = async () => {
-        if (!connectedCamera) {
+        if (!displayCamera) {
             Alert.alert("오류", "연결된 카메라가 없습니다.");
             return;
         }
 
         try {
-            await connectionActions.startWatching(connectedCamera.id);
+            await connectionActions.startWatching(displayCamera.id);
+            Alert.alert("성공", "스트림 시청을 시작합니다!");
             navigation.navigate("LiveStream", {
-                cameraId: parseInt(connectedCamera.id),
-                cameraName: connectedCamera.name,
+                cameraId: parseInt(displayCamera.id),
+                cameraName: displayCamera.name,
             });
         } catch (error) {
             Alert.alert("오류", "스트림을 시작할 수 없습니다.");
@@ -54,7 +98,7 @@ export default function ViewerHomeScreen({ navigation }: ViewerHomeScreenProps) 
                     style: "destructive",
                     onPress: () => {
                         connectionActions.disconnectFromCamera();
-                        navigation.replace("ViewerQRScan");
+                        navigation.replace("ViewerPinCode");
                     },
                 },
             ]
@@ -72,7 +116,7 @@ export default function ViewerHomeScreen({ navigation }: ViewerHomeScreenProps) 
         });
     };
 
-    if (!connectedCamera) {
+    if (!displayCamera) {
         return (
             <View style={styles.container}>
                 <LinearGradient
@@ -80,38 +124,60 @@ export default function ViewerHomeScreen({ navigation }: ViewerHomeScreenProps) 
                     style={styles.backgroundGradient}
                 />
                 <SafeAreaView style={styles.safeArea}>
-                    <View style={styles.emptyState}>
-                        <Ionicons name="camera-off" size={80} color={colors.textSecondary} />
+                    <Animated.View
+                        style={[
+                            styles.emptyState,
+                            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+                        ]}
+                    >
+                        <LinearGradient
+                            colors={[colors.primary, colors.accent]}
+                            style={styles.emptyStateIconGradient}
+                        >
+                            <Ionicons name="camera-off" size={80} color={colors.surface} />
+                        </LinearGradient>
                         <Text style={styles.emptyTitle}>연결된 카메라가 없습니다</Text>
                         <Text style={styles.emptySubtitle}>
-                            QR 코드를 스캔하여 홈캠에 연결하세요
+                            PIN 코드를 입력하여 홈캠에 연결하세요
                         </Text>
 
                         {error && (
                             <View style={styles.errorContainer}>
-                                <Text style={styles.errorText}>{error}</Text>
+                                <LinearGradient
+                                    colors={[colors.error, colors.warning]}
+                                    style={styles.errorGradient}
+                                >
+                                    <Ionicons name="alert-circle" size={20} color={colors.surface} />
+                                    <Text style={styles.errorText}>{error}</Text>
+                                </LinearGradient>
                                 <TouchableOpacity
                                     style={styles.retryButton}
                                     onPress={connectionActions.reconnect}
                                 >
-                                    <Text style={styles.retryButtonText}>다시 시도</Text>
+                                    <LinearGradient
+                                        colors={[colors.primary, colors.accent]}
+                                        style={styles.retryButtonGradient}
+                                    >
+                                        <Ionicons name="refresh" size={16} color={colors.surface} />
+                                        <Text style={styles.retryButtonText}>다시 시도</Text>
+                                    </LinearGradient>
                                 </TouchableOpacity>
                             </View>
                         )}
 
                         <TouchableOpacity
                             style={styles.connectButton}
-                            onPress={() => navigation.navigate("ViewerQRScan")}
+                            onPress={() => navigation.navigate("ViewerPinCode")}
                         >
                             <LinearGradient
                                 colors={[colors.primary, colors.accent]}
                                 style={styles.connectButtonGradient}
                             >
-                                <Ionicons name="qr-code" size={24} color={colors.surface} />
-                                <Text style={styles.connectButtonText}>QR 코드로 연결</Text>
+                                <Ionicons name="key" size={24} color={colors.surface} />
+                                <Text style={styles.connectButtonText}>PIN 코드로 연결</Text>
                             </LinearGradient>
                         </TouchableOpacity>
-                    </View>
+                    </Animated.View>
                 </SafeAreaView>
             </View>
         );
@@ -124,133 +190,134 @@ export default function ViewerHomeScreen({ navigation }: ViewerHomeScreenProps) 
                 <LinearGradient
                     colors={[colors.background, colors.surfaceAlt]}
                     style={styles.backgroundGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
                 />
 
                 <SafeAreaView style={styles.safeArea}>
-                    <View style={styles.header}>
+                    <Animated.View
+                        style={[
+                            styles.header,
+                            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+                        ]}
+                    >
                         <Text style={styles.title}>뷰어 모드</Text>
                         <TouchableOpacity
                             style={styles.settingsButton}
-                            onPress={() => navigation.navigate('Settings')}
+                            onPress={handleSettings}
                         >
-                            <Ionicons name="settings" size={24} color={colors.text} />
+                            <LinearGradient
+                                colors={[colors.surface, colors.surfaceAlt]}
+                                style={styles.settingsButtonGradient}
+                            >
+                                <Ionicons name="settings" size={24} color={colors.text} />
+                            </LinearGradient>
                         </TouchableOpacity>
-                    </View>
+                    </Animated.View>
 
-                    <View style={styles.content}>
-                        {/* 연결 가이드 */}
-                        {connectionState.connectedCameras.length === 0 && (
-                            <View style={styles.connectionGuide}>
-                                <Ionicons name="videocam-outline" size={64} color={colors.textSecondary} />
-                                <Text style={styles.guideTitle}>홈캠에 연결하세요</Text>
-                                <Text style={styles.guideDescription}>
-                                    홈캠 디바이스의 QR 코드를 스캔하거나{'\n'}
-                                    홈캠 ID를 직접 입력하여 연결할 수 있습니다.
-                                </Text>
+                    <Animated.View
+                        style={[
+                            styles.content,
+                            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+                        ]}
+                    >
+                        {/* 연결된 카메라 정보 */}
+                        <Animated.View
+                            style={[
+                                styles.cameraInfoCard,
+                                { transform: [{ scale: pulseAnim }] }
+                            ]}
+                        >
+                            <LinearGradient
+                                colors={[colors.surface, colors.surfaceAlt]}
+                                style={styles.cameraInfoGradient}
+                            >
+                                <View style={styles.cameraInfoHeader}>
+                                    <LinearGradient
+                                        colors={[colors.success, colors.primary]}
+                                        style={styles.cameraStatusGradient}
+                                    >
+                                        <Ionicons name="videocam" size={24} color={colors.surface} />
+                                    </LinearGradient>
+                                    <View style={styles.cameraInfoText}>
+                                        <Text style={styles.cameraName}>{displayCamera.name}</Text>
+                                        <Text style={styles.cameraStatus}>연결됨</Text>
+                                    </View>
+                                </View>
 
-                                <View style={styles.connectionOptions}>
+                                <View style={styles.cameraActions}>
                                     <TouchableOpacity
-                                        style={styles.optionButton}
-                                        onPress={() => navigation.navigate('ViewerQRScan')}
+                                        style={styles.actionButton}
+                                        onPress={handleStartStreaming}
                                     >
                                         <LinearGradient
-                                            colors={[colors.primary, colors.primaryDark]}
-                                            style={styles.optionButtonGradient}
+                                            colors={[colors.primary, colors.accent]}
+                                            style={styles.actionButtonGradient}
                                         >
-                                            <Ionicons name="qr-code-outline" size={32} color={colors.surface} />
-                                            <Text style={styles.optionButtonText}>QR 코드 스캔</Text>
-                                            <Text style={styles.optionButtonSubtext}>카메라로 스캔</Text>
+                                            <Ionicons name="play" size={20} color={colors.surface} />
+                                            <Text style={styles.actionButtonText}>라이브 시청</Text>
                                         </LinearGradient>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
-                                        style={styles.optionButton}
-                                        onPress={() => {
-                                            Alert.prompt(
-                                                '홈캠 ID 입력',
-                                                'MIMO_로 시작하는 홈캠 ID를 입력하세요',
-                                                [
-                                                    { text: '취소', style: 'cancel' },
-                                                    {
-                                                        text: '연결',
-                                                        onPress: (cameraId) => {
-                                                            if (cameraId && cameraId.startsWith('MIMO_')) {
-                                                                connectionActions.connectToCamera(cameraId, '홈캠');
-                                                            } else {
-                                                                Alert.alert('오류', '올바른 홈캠 ID를 입력하세요.');
-                                                            }
-                                                        }
-                                                    }
-                                                ],
-                                                'plain-text'
-                                            );
-                                        }}
+                                        style={styles.disconnectButton}
+                                        onPress={handleDisconnect}
                                     >
                                         <LinearGradient
-                                            colors={[colors.surface, colors.surfaceAlt]}
-                                            style={styles.optionButtonGradient}
+                                            colors={[colors.error, colors.warning]}
+                                            style={styles.disconnectButtonGradient}
                                         >
-                                            <Ionicons name="keypad-outline" size={32} color={colors.text} />
-                                            <Text style={[styles.optionButtonText, { color: colors.text }]}>ID 직접 입력</Text>
-                                            <Text style={[styles.optionButtonSubtext, { color: colors.textSecondary }]}>수동 연결</Text>
+                                            <Ionicons name="close" size={20} color={colors.surface} />
+                                            <Text style={styles.disconnectButtonText}>연결 해제</Text>
                                         </LinearGradient>
                                     </TouchableOpacity>
                                 </View>
-                            </View>
-                        )}
+                            </LinearGradient>
+                        </Animated.View>
 
-                        {/* 연결된 카메라 목록 */}
-                        {connectionState.connectedCameras.length > 0 && (
-                            <View style={styles.cameraList}>
-                                <Text style={styles.sectionTitle}>연결된 홈캠</Text>
-                                {connectionState.connectedCameras.map((camera) => (
-                                    <TouchableOpacity
-                                        key={camera.id}
-                                        style={styles.cameraItem}
-                                        onPress={() => handleViewStream(camera.id, camera.name)}
+                        {/* 연결 상태 정보 */}
+                        <View style={styles.statusCard}>
+                            <LinearGradient
+                                colors={[colors.surface, colors.surfaceAlt]}
+                                style={styles.statusCardGradient}
+                            >
+                                <View style={styles.statusHeader}>
+                                    <LinearGradient
+                                        colors={[colors.primary, colors.accent]}
+                                        style={styles.statusIconGradient}
                                     >
-                                        <LinearGradient
-                                            colors={[colors.surface, colors.surfaceAlt]}
-                                            style={styles.cameraItemGradient}
-                                        >
-                                            <View style={styles.cameraInfo}>
-                                                <Ionicons name="videocam" size={24} color={colors.primary} />
-                                                <View style={styles.cameraDetails}>
-                                                    <Text style={styles.cameraName}>{camera.name}</Text>
-                                                    <Text style={styles.cameraId}>ID: {camera.id}</Text>
-                                                    <Text style={styles.cameraStatus}>
-                                                        {camera.isStreaming ? '🟢 스트리밍 중' : '⚫ 대기 중'}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                                        </LinearGradient>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        )}
+                                        <Ionicons name="wifi" size={20} color={colors.surface} />
+                                    </LinearGradient>
+                                    <Text style={styles.statusTitle}>연결 상태</Text>
+                                </View>
 
-                        {/* 연결 상태 표시 */}
-                        <View style={styles.connectionStatus}>
-                            <View style={styles.statusRow}>
-                                <View style={[styles.statusDot, { backgroundColor: connectionState.isConnected ? colors.success : colors.error }]} />
-                                <Text style={styles.statusText}>
-                                    {connectionState.isConnected ? '서버 연결됨' : '서버 연결 안됨'}
-                                </Text>
-                            </View>
-
-                            {!connectionState.isConnected && (
-                                <TouchableOpacity
-                                    style={styles.retryButton}
-                                    onPress={connectionActions.connect}
-                                >
-                                    <Text style={styles.retryButtonText}>다시 연결</Text>
-                                </TouchableOpacity>
-                            )}
+                                <View style={styles.statusItems}>
+                                    <View style={styles.statusItem}>
+                                        <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+                                        <Text style={styles.statusText}>홈캠 연결됨</Text>
+                                    </View>
+                                    <View style={styles.statusItem}>
+                                        <View style={[styles.statusDot, { backgroundColor: colors.primary }]} />
+                                        <Text style={styles.statusText}>실시간 스트림 준비됨</Text>
+                                    </View>
+                                </View>
+                            </LinearGradient>
                         </View>
-                    </View>
+
+                        {/* 빠른 액션 */}
+                        <View style={styles.quickActions}>
+                            <TouchableOpacity
+                                style={styles.quickActionButton}
+                                onPress={() => navigation.navigate("ViewerPinCode")}
+                            >
+                                <LinearGradient
+                                    colors={[colors.surface, colors.surfaceAlt]}
+                                    style={styles.quickActionGradient}
+                                >
+                                    <Ionicons name="add-circle" size={32} color={colors.primary} />
+                                    <Text style={styles.quickActionText}>다른 홈캠 연결</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
                 </SafeAreaView>
             </View>
         </>
@@ -295,6 +362,15 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         paddingHorizontal: spacing.xl,
+    },
+    emptyStateIconGradient: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: spacing.xl,
+        ...elevation['2'],
     },
     emptyTitle: {
         fontSize: 20,
@@ -430,11 +506,16 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
     },
     errorContainer: {
-        backgroundColor: colors.error + '20',
-        borderRadius: radius.md,
-        padding: spacing.md,
         marginVertical: spacing.md,
         alignItems: 'center',
+    },
+    errorGradient: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.md,
+        marginBottom: spacing.md,
     },
     errorText: {
         color: colors.error,
@@ -443,15 +524,21 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     retryButton: {
-        backgroundColor: colors.error,
+        borderRadius: radius.md,
+        overflow: 'hidden',
+    },
+    retryButtonGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
-        borderRadius: radius.md,
     },
     retryButtonText: {
         color: colors.surface,
         fontSize: 14,
         fontWeight: '600',
+        marginLeft: spacing.xs,
     },
     content: {
         flex: 1,
@@ -573,5 +660,123 @@ const styles = StyleSheet.create({
     statusText: {
         fontSize: 14,
         color: colors.textSecondary,
+    },
+    cameraInfoCard: {
+        marginBottom: spacing.lg,
+        borderRadius: radius.lg,
+        overflow: "hidden",
+        elevation: elevation.md,
+    },
+    cameraInfoGradient: {
+        padding: spacing.lg,
+    },
+    cameraInfoHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: spacing.md,
+    },
+    cameraStatusGradient: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: spacing.md,
+    },
+    cameraInfoText: {
+        flex: 1,
+    },
+    cameraActions: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+    },
+    actionButton: {
+        flex: 1,
+        marginHorizontal: spacing.xs,
+        borderRadius: radius.md,
+        overflow: "hidden",
+    },
+    actionButtonGradient: {
+        paddingVertical: spacing.md,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    actionButtonText: {
+        color: colors.surface,
+        fontSize: 14,
+        fontWeight: "600",
+        marginTop: spacing.xs,
+    },
+    disconnectButton: {
+        flex: 1,
+        marginHorizontal: spacing.xs,
+        borderRadius: radius.md,
+        overflow: "hidden",
+    },
+    disconnectButtonGradient: {
+        paddingVertical: spacing.md,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    disconnectButtonText: {
+        color: colors.surface,
+        fontSize: 14,
+        fontWeight: "600",
+        marginTop: spacing.xs,
+    },
+    statusCard: {
+        marginBottom: spacing.lg,
+        borderRadius: radius.lg,
+        overflow: "hidden",
+        elevation: elevation.md,
+    },
+    statusCardGradient: {
+        padding: spacing.lg,
+    },
+    statusHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: spacing.md,
+    },
+    statusIconGradient: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: spacing.md,
+    },
+    statusTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: colors.text,
+    },
+    statusItems: {
+        flexDirection: "row",
+        justifyContent: "space-around",
+    },
+    statusItem: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    quickActionButton: {
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        padding: spacing.lg,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        elevation: elevation.sm,
+    },
+    quickActionGradient: {
+        paddingVertical: spacing.md,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    quickActionText: {
+        marginLeft: spacing.sm,
+        fontSize: 16,
+        fontWeight: "600",
+        color: colors.text,
     },
 });

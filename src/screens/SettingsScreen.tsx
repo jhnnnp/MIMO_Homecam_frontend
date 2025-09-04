@@ -358,6 +358,20 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                         </View>
                     </View>
 
+                    {/* Developer Tools */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>개발자 도구</Text>
+                        <View style={styles.sectionCard}>
+                            <SettingItem
+                                icon="bug-outline"
+                                title="WebSocket 테스트"
+                                subtitle="실시간 통신 연결 테스트"
+                                onPress={() => navigation.navigate('WebSocketTest')}
+                                iconColor={colors.accent}
+                            />
+                        </View>
+                    </View>
+
                     {/* Account Management */}
                     <View style={styles.section}>
                         <Text style={styles.dangerTitle}>위험 구역</Text>

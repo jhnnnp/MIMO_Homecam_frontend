@@ -1,3 +1,12 @@
+import { createLogger } from '../utils/logger';
+import { withErrorHandling, createNetworkError, createTimeoutError } from '../utils/errorHandler';
+import { webrtcService } from './webrtcService';
+import { getWebSocketUrl } from '../config';
+import { useAuthStore } from '../stores/authStore';
+
+// 스트리밍 서비스 로거
+const streamingLogger = createLogger('StreamingService');
+
 // React Native용 EventEmitter 구현
 class EventEmitter {
     private events: { [key: string]: Function[] } = {};
@@ -28,33 +37,82 @@ class EventEmitter {
     }
 }
 
-import { SignalingMessage, webrtcService } from './webrtcService';
+// 시그널링 메시지 인터페이스
+export interface SignalingMessage {
+    type: 'offer' | 'answer' | 'ice-candidate' | 'stream-start' | 'stream-stop';
+    from: string;
+    to: string;
+    data: any;
+}
 
+// 스트림 연결 인터페이스
 export interface StreamConnection {
     id: string;
     cameraId: string;
     viewerId: string;
     status: 'connecting' | 'connected' | 'disconnected' | 'error';
     timestamp: number;
+    metadata?: {
+        quality: string;
+        frameRate: number;
+        bitrate: number;
+    };
 }
 
+// 카메라 스트림 인터페이스
 export interface CameraStream {
     id: string;
     name: string;
     status: 'online' | 'offline' | 'streaming';
     viewers: string[];
     streamUrl?: string;
+    metadata?: {
+        resolution: string;
+        frameRate: number;
+        quality: string;
+    };
 }
+
+// WebSocket 연결 상태
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+
+// 스트리밍 이벤트 타입
+export type StreamingEvent =
+    | 'connected'
+    | 'disconnected'
+    | 'reconnecting'
+    | 'error'
+    | 'camera_connected'
+    | 'camera_disconnected'
+    | 'stream_started'
+    | 'stream_stopped'
+    | 'viewer_joined'
+    | 'viewer_left'
+    | 'webrtc_signaling';
+
+// 스트리밍 이벤트 리스너
+export type StreamingEventListener = (event: StreamingEvent, data?: any) => void;
 
 class StreamingService extends EventEmitter {
     private ws: WebSocket | null = null;
-    private isConnecting = false;
+    private connectionStatus: ConnectionStatus = 'disconnected';
+    private reconnectAttempts = 0;
+    private reconnectTimer: NodeJS.Timeout | null = null;
+    private heartbeatTimer: NodeJS.Timeout | null = null;
+    private eventListeners: StreamingEventListener[] = [];
+
+    // WebSocket 클라이언트 ID
+    private clientId: string | null = null;
 
     // 연결된 카메라 목록
     private connectedCameras: Map<string, CameraStream> = new Map();
 
     // 활성 스트림 연결
     private activeStreams: Map<string, StreamConnection> = new Map();
+
+    // 연결 상태 추적
+    private lastConnectionTime: number = 0;
+    private connectionAttempts: number = 0;
 
     constructor() {
         super();
@@ -63,251 +121,438 @@ class StreamingService extends EventEmitter {
         webrtcService.setSignalingCallback((message: SignalingMessage) => {
             this.sendMessage('webrtc_signaling', message);
         });
+
+        // 이벤트 리스너 등록
+        this.setupEventListeners();
     }
 
-    // 동적 IP 감지 함수
-    private async getLocalIPAddress(): Promise<string> {
-        try {
-            // Expo Go에서 실행 중인 경우 자동으로 감지된 IP 사용
-            if (__DEV__) {
-                // 개발 환경에서는 실제 네트워크 IP 사용
-                // 현재 감지된 IP: 192.168.123.105
-                return '192.168.123.105';
-            }
-            return 'localhost';
-        } catch (error) {
-            console.warn('IP 감지 실패, 기본 IP 사용:', error);
-            return '192.168.123.105'; // 기본값으로 실제 IP 사용
-        }
+    // 이벤트 리스너 설정
+    private setupEventListeners(): void {
+        this.on('connected', () => {
+            streamingLogger.logWebSocketEvent('Connected');
+            this.connectionStatus = 'connected';
+            this.reconnectAttempts = 0;
+            this.lastConnectionTime = Date.now();
+            this.startHeartbeat();
+        });
+
+        this.on('disconnected', () => {
+            streamingLogger.logWebSocketEvent('Disconnected');
+            this.connectionStatus = 'disconnected';
+            this.stopHeartbeat();
+            this.scheduleReconnect();
+        });
+
+        this.on('error', (error: any) => {
+            streamingLogger.error('Connection error', error);
+            this.connectionStatus = 'error';
+            this.scheduleReconnect();
+        });
     }
 
     // WebSocket 연결 초기화
     async connect(serverUrl?: string): Promise<boolean> {
-        if (this.isConnecting) return false;
-
-        // 환경별 WebSocket URL 설정
-        const getWebSocketUrl = async (): Promise<string> => {
-            if (serverUrl) return serverUrl;
-
-            // 환경 변수로 우선 설정
-            if (process.env.EXPO_PUBLIC_WS_URL) {
-                return process.env.EXPO_PUBLIC_WS_URL;
+        return withErrorHandling(async () => {
+            if (this.connectionStatus === 'connecting' || this.connectionStatus === 'connected') {
+                console.log('⚠️ [WebSocket] 이미 연결 중이거나 연결됨:', this.connectionStatus);
+                streamingLogger.warn('Already connected or connecting');
+                return this.connectionStatus === 'connected';
             }
 
-            // 환경별 기본값
-            if (__DEV__) {
-                // 개발 환경: 동적으로 IP 감지
-                const localIP = await this.getLocalIPAddress();
-                return `ws://${localIP}:8080`;
-            }
+            this.connectionStatus = 'connecting';
+            this.connectionAttempts++;
+            console.log('🔌 [WebSocket] 연결 시도 시작 (시도 횟수:', this.connectionAttempts, ')');
 
-            if (process.env.EXPO_PUBLIC_ENV === 'staging') {
-                return 'wss://staging-ws.mimo-camera.com';
-            }
+            const wsUrl = serverUrl || getWebSocketUrl();
+            console.log('🌐 [WebSocket] 연결 URL:', wsUrl);
+            streamingLogger.logWebSocketEvent('Connecting', { url: wsUrl });
 
-            return 'wss://ws.mimo-camera.com'; // 프로덕션
-        };
+            try {
+                // 실제 인증 토큰 사용
+                const { getAccessToken } = useAuthStore.getState();
+                const accessToken = await getAccessToken();
 
-        const wsUrl = await getWebSocketUrl();
-        console.log('🔌 WebSocket 연결 시도:', wsUrl);
-        this.isConnecting = true;
+                if (!accessToken) {
+                    console.error('❌ [WebSocket] 인증 토큰 없음');
+                    throw new Error('인증 토큰이 없습니다. 로그인이 필요합니다.');
+                }
+                console.log('✅ [WebSocket] 인증 토큰 확인됨');
 
-        try {
-            this.ws = new WebSocket(wsUrl);
+                const wsUrlWithToken = `${wsUrl}/ws?token=${accessToken}`;
+                console.log('🔗 [WebSocket] 토큰 포함 URL:', wsUrlWithToken);
 
-            this.ws.onopen = () => {
-                console.log('🔗 WebSocket 연결 성공');
-                this.isConnecting = false;
-                this.emit('connected');
-            };
+                this.ws = new WebSocket(wsUrlWithToken);
+                console.log('🔌 [WebSocket] WebSocket 객체 생성됨');
 
-            this.ws.onmessage = (event) => {
-                this.handleMessage(JSON.parse(event.data));
-            };
+                this.ws.onopen = () => {
+                    console.log('✅ [WebSocket] 연결 성공!');
+                    streamingLogger.logWebSocketEvent('Connection established');
+                    this.connectionStatus = 'connected';
+                    this.reconnectAttempts = 0;
+                    this.lastConnectionTime = Date.now();
+                    this.startHeartbeat();
+                    this.emit('connected');
+                };
 
-            this.ws.onclose = () => {
-                console.log('🔌 WebSocket 연결 종료');
-                this.isConnecting = false;
-                this.emit('disconnected');
-            };
+                this.ws.onmessage = (event) => {
+                    console.log('📨 [WebSocket] 메시지 수신:', event.data);
+                    this.handleMessage(JSON.parse(event.data));
+                };
 
-            this.ws.onerror = (error) => {
-                console.error('❌ WebSocket 오류:', error);
-                this.isConnecting = false;
+                this.ws.onclose = (event) => {
+                    console.log('🔌 [WebSocket] 연결 종료 - 코드:', event.code, '이유:', event.reason);
+                    streamingLogger.logWebSocketEvent('Connection closed', { code: event.code, reason: event.reason });
+                    this.connectionStatus = 'disconnected';
+                    this.stopHeartbeat();
+                    this.emit('disconnected');
+                    this.scheduleReconnect();
+                };
+
+                this.ws.onerror = (error: any) => {
+                    console.error('❌ [WebSocket] 연결 오류:', error);
+                    streamingLogger.error('WebSocket error', error);
+                    this.connectionStatus = 'error';
+                    this.emit('error', error);
+                };
+
+                console.log('✅ [WebSocket] 연결 설정 완료');
+                return true;
+            } catch (error) {
+                console.error('❌ [WebSocket] 연결 실패:', error);
+                console.error('❌ [WebSocket] 오류 상세:', {
+                    message: error instanceof Error ? error.message : String(error),
+                    stack: error instanceof Error ? error.stack : 'No stack trace',
+                    connectionAttempts: this.connectionAttempts,
+                    url: wsUrl
+                });
+                streamingLogger.error('Connection failed', error as Error);
+                this.connectionStatus = 'error';
                 this.emit('error', error);
-            };
+                return false;
+            }
+        }, { operation: 'connect', url: serverUrl || getWebSocketUrl() });
+    }
 
-            return true;
-        } catch (error) {
-            console.error('❌ WebSocket 연결 실패:', error);
-            this.isConnecting = false;
-            return false;
+    // 자동 재연결 스케줄링
+    private scheduleReconnect(): void {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+        }
+
+        if (this.reconnectAttempts >= 5) {
+            streamingLogger.error('Max reconnection attempts reached');
+            return;
+        }
+
+        const delay = this.calculateReconnectDelay();
+        streamingLogger.warn(`Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
+
+        this.reconnectTimer = setTimeout(async () => {
+            this.connectionStatus = 'reconnecting';
+            this.reconnectAttempts++;
+            this.emit('reconnecting');
+
+            const success = await this.connect();
+            if (!success) {
+                this.scheduleReconnect();
+            }
+        }, delay);
+    }
+
+    // 재연결 지연 시간 계산 (지수 백오프)
+    private calculateReconnectDelay(): number {
+        const baseDelay = 2000;
+        const maxDelay = 30000; // 최대 30초
+        const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts), maxDelay);
+        return delay + Math.random() * 1000; // 지터 추가
+    }
+
+    // 하트비트 시작
+    private startHeartbeat(): void {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+        }
+
+        this.heartbeatTimer = setInterval(() => {
+            if (this.isConnected()) {
+                this.sendMessage('heartbeat', { timestamp: Date.now() });
+            }
+        }, 30000);
+    }
+
+    // 하트비트 중지
+    private stopHeartbeat(): void {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = null;
         }
     }
 
     // 메시지 처리
-    private handleMessage(message: any) {
-        switch (message.type) {
-            case 'camera_connected':
-                this.handleCameraConnected(message.data);
-                break;
-            case 'camera_disconnected':
-                this.handleCameraDisconnected(message.data);
-                break;
-            case 'stream_started':
-                this.handleStreamStarted(message.data);
-                break;
-            case 'stream_stopped':
-                this.handleStreamStopped(message.data);
-                break;
-            case 'viewer_joined':
-                this.handleViewerJoined(message.data);
-                break;
-            case 'viewer_left':
-                this.handleViewerLeft(message.data);
-                break;
-            case 'webrtc_signaling':
-                this.handleWebRTCSignaling(message.data);
-                break;
-            default:
-                console.log('📨 알 수 없는 메시지:', message);
+    private handleMessage(message: any): void {
+        try {
+            console.log('📨 [WebSocket] 메시지 처리:', message.type, message.data);
+            streamingLogger.debug('Received message', { type: message.type });
+
+            switch (message.type) {
+                case 'client_id':
+                    this.handleClientId(message.data);
+                    break;
+                case 'camera_connected':
+                    this.handleCameraConnected(message.data);
+                    break;
+                case 'camera_disconnected':
+                    this.handleCameraDisconnected(message.data);
+                    break;
+                case 'camera_registered':
+                    this.handleCameraRegistered(message.data);
+                    break;
+                case 'stream_started':
+                    this.handleStreamStarted(message.data);
+                    break;
+                case 'stream_stopped':
+                    this.handleStreamStopped(message.data);
+                    break;
+                case 'stream_joined':
+                    this.handleStreamJoined(message.data);
+                    break;
+                case 'viewer_joined':
+                    this.handleViewerJoined(message.data);
+                    break;
+                case 'viewer_left':
+                    this.handleViewerLeft(message.data);
+                    break;
+                case 'webrtc_signaling':
+                    this.handleWebRTCSignaling(message.data);
+                    break;
+                case 'heartbeat':
+                case 'pong':
+                    this.handleHeartbeat(message.data);
+                    break;
+                case 'error':
+                    this.handleError(message.data);
+                    break;
+                default:
+                    console.log('⚠️ [WebSocket] 알 수 없는 메시지 타입:', message.type);
+                    streamingLogger.warn('Unknown message type', { type: message.type });
+            }
+        } catch (error) {
+            console.error('❌ [WebSocket] 메시지 처리 오류:', error);
+            streamingLogger.error('Message handling error', error as Error, { message });
         }
     }
 
     // 카메라 연결 처리
-    private handleCameraConnected(cameraData: CameraStream) {
+    private handleCameraConnected(cameraData: CameraStream): void {
         this.connectedCameras.set(cameraData.id, cameraData);
-        this.emit('cameraConnected', cameraData);
+        streamingLogger.logWebSocketEvent('Camera connected', { cameraId: cameraData.id });
+        this.emit('camera_connected', cameraData);
     }
 
     // 카메라 연결 해제 처리
-    private handleCameraDisconnected(cameraId: string) {
+    private handleCameraDisconnected(cameraId: string): void {
         this.connectedCameras.delete(cameraId);
-        this.emit('cameraDisconnected', cameraId);
+        streamingLogger.logWebSocketEvent('Camera disconnected', { cameraId });
+        this.emit('camera_disconnected', cameraId);
     }
 
     // 스트림 시작 처리
-    private handleStreamStarted(streamData: StreamConnection) {
+    private handleStreamStarted(streamData: StreamConnection): void {
         this.activeStreams.set(streamData.id, streamData);
-        this.emit('streamStarted', streamData);
+        streamingLogger.logWebSocketEvent('Stream started', { streamId: streamData.id });
+        this.emit('stream_started', streamData);
     }
 
     // 스트림 중지 처리
-    private handleStreamStopped(streamId: string) {
+    private handleStreamStopped(streamId: string): void {
         this.activeStreams.delete(streamId);
-        this.emit('streamStopped', streamId);
+        streamingLogger.logWebSocketEvent('Stream stopped', { streamId });
+        this.emit('stream_stopped', streamId);
     }
 
     // 뷰어 참여 처리
-    private handleViewerJoined(data: { streamId: string; viewerId: string }) {
+    private handleViewerJoined(data: { streamId: string; viewerId: string }): void {
         const stream = this.activeStreams.get(data.streamId);
         if (stream) {
-            this.emit('viewerJoined', data);
+            streamingLogger.logWebSocketEvent('Viewer joined', data);
+            this.emit('viewer_joined', data);
         }
     }
 
     // 뷰어 퇴장 처리
-    private handleViewerLeft(data: { streamId: string; viewerId: string }) {
-        this.emit('viewerLeft', data);
+    private handleViewerLeft(data: { streamId: string; viewerId: string }): void {
+        streamingLogger.logWebSocketEvent('Viewer left', data);
+        this.emit('viewer_left', data);
     }
 
     // WebRTC 시그널링 처리
-    private handleWebRTCSignaling(data: SignalingMessage) {
+    private handleWebRTCSignaling(data: SignalingMessage): void {
         try {
             webrtcService.handleSignalingMessage(data);
+            this.emit('webrtc_signaling', data);
         } catch (error) {
-            console.error('❌ WebRTC 시그널링 처리 실패:', error);
+            streamingLogger.error('WebRTC signaling error', error as Error, { data });
         }
+    }
+
+    // 클라이언트 ID 처리
+    private handleClientId(data: { clientId: string }): void {
+        console.log('🆔 [WebSocket] 클라이언트 ID 수신:', data.clientId);
+        this.clientId = data.clientId;
+        streamingLogger.debug('Client ID received', { clientId: data.clientId });
+    }
+
+    // 카메라 등록 확인 처리
+    private handleCameraRegistered(data: any): void {
+        console.log('✅ [WebSocket] 카메라 등록 확인:', data);
+        streamingLogger.logWebSocketEvent('Camera registered', { cameraId: data.id });
+        this.emit('camera_registered', data);
+    }
+
+    // 스트림 참여 확인 처리
+    private handleStreamJoined(data: any): void {
+        console.log('🎥 [WebSocket] 스트림 참여 확인:', data);
+        streamingLogger.logWebSocketEvent('Stream joined', { cameraId: data.cameraId, viewerId: data.viewerId });
+        this.emit('stream_joined', data);
+    }
+
+    // 에러 메시지 처리
+    private handleError(data: { message: string }): void {
+        console.error('❌ [WebSocket] 서버 에러:', data.message);
+        streamingLogger.error('Server error', new Error(data.message));
+        this.emit('error', new Error(data.message));
+    }
+
+    // 하트비트 응답 처리
+    private handleHeartbeat(data: any): void {
+        streamingLogger.debug('Heartbeat received', { data });
     }
 
     // 수동 재연결 메서드
-    reconnect() {
-        if (this.isConnecting) {
-            console.log('🔄 이미 연결 시도 중입니다.');
-            return false;
+    async reconnect(): Promise<boolean> {
+        streamingLogger.logUserAction('Manual reconnect');
+
+        if (this.connectionStatus === 'connecting' || this.connectionStatus === 'connected') {
+            streamingLogger.warn('Already connected or connecting');
+            return this.connectionStatus === 'connected';
         }
 
-        console.log('🔄 수동 재연결 시도');
-        return this.connect();
+        // 기존 연결 정리
+        this.disconnect();
+
+        // 재연결 시도
+        return await this.connect();
     }
 
     // 메시지 전송
-    private sendMessage(type: string, data: any) {
+    private sendMessage(type: string, data: any): void {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({ type, data }));
+            const message = { type, data, timestamp: Date.now() };
+            this.ws.send(JSON.stringify(message));
+            streamingLogger.debug('Message sent', { type, data });
         } else {
-            console.error('❌ WebSocket이 연결되지 않음');
+            streamingLogger.warn('WebSocket not connected, cannot send message', { type });
         }
     }
 
     // 카메라 등록 (홈캠 모드)
     registerCamera(cameraId: string, cameraName: string): boolean {
+        if (!this.isConnected()) {
+            streamingLogger.warn('Cannot register camera: WebSocket not connected');
+            return false;
+        }
+
         this.sendMessage('register_camera', {
             id: cameraId,
             name: cameraName,
             timestamp: Date.now()
         });
+
+        streamingLogger.logUserAction('Camera registered', { cameraId, cameraName });
         return true;
     }
 
     // 카메라 연결 해제
     unregisterCamera(cameraId: string): boolean {
+        if (!this.isConnected()) {
+            streamingLogger.warn('Cannot unregister camera: WebSocket not connected');
+            return false;
+        }
+
         this.sendMessage('unregister_camera', { id: cameraId });
+        streamingLogger.logUserAction('Camera unregistered', { cameraId });
         return true;
     }
 
     // 스트림 시작 (홈캠 모드)
     async startStream(cameraId: string, viewerId: string): Promise<boolean> {
-        try {
-            // WebRTC 스트림 시작
-            await webrtcService.startStreaming(cameraId, viewerId);
+        return withErrorHandling(async () => {
+            streamingLogger.logUserAction('Start stream', { cameraId, viewerId });
 
-            // 서버에 스트림 시작 알림
-            this.sendMessage('start_stream', {
-                cameraId,
-                viewerId,
-                timestamp: Date.now()
-            });
+            try {
+                // WebRTC 스트림 시작
+                await webrtcService.startStreaming(cameraId, viewerId);
 
-            return true;
-        } catch (error) {
-            console.error('❌ 스트림 시작 실패:', error);
-            return false;
-        }
+                // 서버에 스트림 시작 알림
+                this.sendMessage('start_stream', {
+                    cameraId,
+                    viewerId,
+                    timestamp: Date.now()
+                });
+
+                return true;
+            } catch (error) {
+                streamingLogger.error('Failed to start stream', error as Error, { cameraId, viewerId });
+                return false;
+            }
+        }, { operation: 'start_stream', cameraId, viewerId });
     }
 
     // 스트림 중지 (홈캠 모드)
     stopStream(cameraId: string): boolean {
+        if (!this.isConnected()) {
+            streamingLogger.warn('Cannot stop stream: WebSocket not connected');
+            return false;
+        }
+
         this.sendMessage('stop_stream', { cameraId });
+        streamingLogger.logUserAction('Stream stopped', { cameraId });
         return true;
     }
 
     // 뷰어로 스트림 참여 (뷰어 모드)
     async joinStream(cameraId: string, viewerId: string): Promise<boolean> {
-        try {
-            // WebRTC 스트림 시청 시작
-            await webrtcService.startViewing(cameraId, viewerId);
+        return withErrorHandling(async () => {
+            streamingLogger.logUserAction('Join stream', { cameraId, viewerId });
 
-            // 서버에 스트림 참여 알림
-            this.sendMessage('join_stream', {
-                cameraId,
-                viewerId,
-                timestamp: Date.now()
-            });
+            try {
+                // WebRTC 스트림 시청 시작
+                await webrtcService.startViewing(cameraId, viewerId);
 
-            return true;
-        } catch (error) {
-            console.error('❌ 스트림 참여 실패:', error);
-            return false;
-        }
+                // 서버에 스트림 참여 알림
+                this.sendMessage('join_stream', {
+                    cameraId,
+                    viewerId,
+                    timestamp: Date.now()
+                });
+
+                return true;
+            } catch (error) {
+                streamingLogger.error('Failed to join stream', error as Error, { cameraId, viewerId });
+                return false;
+            }
+        }, { operation: 'join_stream', cameraId, viewerId });
     }
 
     // 스트림에서 나가기 (뷰어 모드)
     leaveStream(cameraId: string, viewerId: string): boolean {
-        this.sendMessage('leave_stream', {
-            cameraId,
-            viewerId
-        });
+        if (!this.isConnected()) {
+            streamingLogger.warn('Cannot leave stream: WebSocket not connected');
+            return false;
+        }
+
+        this.sendMessage('leave_stream', { cameraId, viewerId });
+        streamingLogger.logUserAction('Left stream', { cameraId, viewerId });
         return true;
     }
 
@@ -326,17 +571,64 @@ class StreamingService extends EventEmitter {
         return this.connectedCameras.get(cameraId);
     }
 
+    // 카메라를 연결된 카메라 목록에 추가 (수동 연결용)
+    addConnectedCamera(cameraData: CameraStream): void {
+        this.connectedCameras.set(cameraData.id, cameraData);
+        streamingLogger.logUserAction('Camera added manually', { cameraId: cameraData.id });
+        this.emit('camera_connected', cameraData);
+    }
+
     // 연결 상태 확인
     isConnected(): boolean {
         return this.ws?.readyState === WebSocket.OPEN;
     }
 
+    // 연결 상태 조회
+    getConnectionStatus(): ConnectionStatus {
+        return this.connectionStatus;
+    }
+
+    // 연결 통계 조회
+    getConnectionStats(): {
+        status: ConnectionStatus;
+        lastConnectionTime: number;
+        connectionAttempts: number;
+        reconnectAttempts: number;
+        uptime: number;
+    } {
+        const now = Date.now();
+        return {
+            status: this.connectionStatus,
+            lastConnectionTime: this.lastConnectionTime,
+            connectionAttempts: this.connectionAttempts,
+            reconnectAttempts: this.reconnectAttempts,
+            uptime: this.lastConnectionTime > 0 ? now - this.lastConnectionTime : 0,
+        };
+    }
+
     // 연결 종료
-    disconnect() {
+    disconnect(): void {
+        streamingLogger.logUserAction('Disconnect');
+
+        // 타이머 정리
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = null;
+        }
+
+        // WebSocket 연결 종료
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
+
+        // 상태 초기화
+        this.connectionStatus = 'disconnected';
         this.connectedCameras.clear();
         this.activeStreams.clear();
 
@@ -360,9 +652,17 @@ class StreamingService extends EventEmitter {
     getWebRTCConnectionCount() {
         return webrtcService.getConnectedStreamCount();
     }
+
+    // 서비스 정리
+    cleanup(): void {
+        this.disconnect();
+        this.removeAllListeners();
+        streamingLogger.info('Streaming service cleaned up');
+    }
 }
 
 // 싱글톤 인스턴스
 export const streamingService = new StreamingService();
 export default streamingService;
+
 

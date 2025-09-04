@@ -1,283 +1,523 @@
-import { useState, useEffect, useRef } from "react";
-import { Camera, CameraType, FlashMode } from "expo-camera";
-import { Audio } from "expo-av";
-import streamingService from "../services/streamingService";
-import * as MediaLibrary from "expo-media-library";
-import { recordingService, RecordingSession } from "../services/recordingService";
+// ============================================================================
+// IMPROVED USE CAMERA STREAM HOOK - 개선된 카메라 스트림 훅
+// ============================================================================
 
-export interface CameraStreamState {
-    hasPermission: boolean;
-    cameraType: CameraType;
-    flashMode: FlashMode;
-    isRecording: boolean;
-    isStreaming: boolean;
-    recordingTime: number;
-    streamingTime: number;
-    error: string | null;
-    activeRecording?: RecordingSession;
-    recordingSettings: {
-        quality: 'low' | 'medium' | 'high' | 'max';
-        maxDuration: number;
-        autoSave: boolean;
-        includeAudio: boolean;
-    };
-}
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Camera, CameraType, FlashMode } from 'expo-camera';
+import { Audio } from 'expo-av';
+import * as MediaLibrary from 'expo-media-library';
+import { Alert } from 'react-native';
 
-export interface CameraStreamActions {
-    requestPermissions: () => Promise<void>;
-    startRecording: (cameraId?: string) => Promise<void>;
-    stopRecording: () => Promise<void>;
-    startStreaming: () => Promise<void>;
-    stopStreaming: () => Promise<void>;
-    switchCamera: () => void;
-    toggleFlash: () => void;
-    takeSnapshot: () => Promise<string | null>;
-    updateRecordingSettings: (settings: Partial<CameraStreamState['recordingSettings']>) => void;
-    cameraRef: React.RefObject<Camera>;
-}
+import {
+    StreamState,
+    StreamActions,
+    StreamQuality,
+    MediaStream
+} from '../types/hooks';
+import streamingService from '../services/streamingService';
+import recordingService from '../services/recordingService';
+import settingsService from '../services/settingsService';
+import { logger, logStreaming, logStreamingError } from '../utils/logger';
 
-export const useCameraStream = (): [CameraStreamState, CameraStreamActions] => {
-    const [hasPermission, setHasPermission] = useState(false);
-    const [cameraType, setCameraType] = useState<CameraType>('back'); // Expo Go 호환을 위해 문자열 사용
-    const [flashMode, setFlashMode] = useState<FlashMode>('off'); // Expo Go 호환을 위해 문자열 사용
-    const [isRecording, setIsRecording] = useState(false);
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [recordingTime, setRecordingTime] = useState(0);
-    const [streamingTime, setStreamingTime] = useState(0);
-    const [error, setError] = useState<string | null>(null);
-    const [activeRecording, setActiveRecording] = useState<RecordingSession | undefined>();
-    const [recordingSettings, setRecordingSettings] = useState({
-        quality: 'high' as const,
-        maxDuration: 300, // 5분
-        autoSave: true,
-        includeAudio: true,
+// ============================================================================
+// 상수 정의
+// ============================================================================
+
+const DEFAULT_STREAM_QUALITY: StreamQuality = {
+    resolution: '720p',
+    fps: 30,
+    bitrate: 2000000, // 2Mbps
+    codec: 'h264',
+};
+
+const QUALITY_PRESETS: Record<string, StreamQuality> = {
+    low: {
+        resolution: '360p',
+        fps: 15,
+        bitrate: 500000,
+        codec: 'h264',
+    },
+    medium: {
+        resolution: '480p',
+        fps: 24,
+        bitrate: 1000000,
+        codec: 'h264',
+    },
+    high: {
+        resolution: '720p',
+        fps: 30,
+        bitrate: 2000000,
+        codec: 'h264',
+    },
+    ultra: {
+        resolution: '1080p',
+        fps: 30,
+        bitrate: 4000000,
+        codec: 'h264',
+    },
+};
+
+// ============================================================================
+// 메인 카메라 스트림 훅
+// ============================================================================
+
+export const useCameraStream = (): HookReturn<StreamState, StreamActions> => {
+
+    // ============================================================================
+    // 상태 관리
+    // ============================================================================
+
+    const [state, setState] = useState<StreamState>({
+        activeStreams: new Map(),
+        streamQuality: DEFAULT_STREAM_QUALITY,
+        isStreaming: false,
+        streamTime: 0,
+        viewerCount: 0,
+        error: null,
+        isLoading: false,
+        connectionStatus: 'disconnected',
     });
 
-    const cameraRef = useRef<Camera>(null);
-    const recordingIntervalRef = useRef<NodeJS.Timeout>();
-    const streamingIntervalRef = useRef<NodeJS.Timeout>();
-    const currentRecordingSessionRef = useRef<string | null>(null);
+    // ============================================================================
+    // Refs
+    // ============================================================================
 
-    // 권한 요청
-    const requestPermissions = async () => {
+    const isMountedRef = useRef(true);
+    const streamTimeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const activeStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+    const isStartingStreamRef = useRef(false);
+    const isStoppingStreamRef = useRef(false);
+
+    // ============================================================================
+    // 안전한 상태 업데이트
+    // ============================================================================
+
+    const safeSetState = useCallback((updater: (prev: StreamState) => StreamState) => {
+        if (isMountedRef.current) {
+            setState(updater);
+        }
+    }, []);
+
+    // ============================================================================
+    // 에러 처리
+    // ============================================================================
+
+    const handleError = useCallback((error: unknown, action: string) => {
+        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
+        logStreamingError('unknown', action, errorMessage, error instanceof Error ? error : undefined);
+
+        safeSetState(prev => ({
+            ...prev,
+            error: errorMessage,
+            isLoading: false,
+            connectionStatus: 'error'
+        }));
+    }, [safeSetState]);
+
+    // ============================================================================
+    // 로딩 상태 관리
+    // ============================================================================
+
+    const setLoading = useCallback((isLoading: boolean) => {
+        safeSetState(prev => ({ ...prev, isLoading }));
+    }, [safeSetState]);
+
+    // ============================================================================
+    // 스트림 품질 관리
+    // ============================================================================
+
+    const getOptimalStreamQuality = useCallback(async (): Promise<StreamQuality> => {
         try {
-            setError(null);
-            
-            // 카메라 권한
-            const cameraPermission = await Camera.requestCameraPermissionsAsync();
-            const audioPermission = await Audio.requestPermissionsAsync();
-            const mediaPermission = await MediaLibrary.requestPermissionsAsync();
+            // 설정 서비스에서 사용자 설정 가져오기
+            const userSettings = await settingsService.getStreamSettings();
 
-            if (
-                cameraPermission.status === "granted" &&
-                audioPermission.status === "granted" &&
-                mediaPermission.status === "granted"
-            ) {
-                setHasPermission(true);
+            if (userSettings?.quality) {
+                return QUALITY_PRESETS[userSettings.quality] || DEFAULT_STREAM_QUALITY;
+            }
+
+            // 네트워크 상태에 따른 자동 품질 조정
+            const networkInfo = await settingsService.getNetworkInfo();
+
+            if (networkInfo?.type === 'wifi' && networkInfo?.speed === 'fast') {
+                return QUALITY_PRESETS.high;
+            } else if (networkInfo?.type === 'cellular') {
+                return QUALITY_PRESETS.medium;
             } else {
-                setError("카메라, 마이크, 저장소 권한이 필요합니다.");
+                return QUALITY_PRESETS.low;
             }
-        } catch (err) {
-            setError("권한 요청 중 오류가 발생했습니다.");
+        } catch (error) {
+            logStreamingError('unknown', 'getOptimalStreamQuality', '최적 품질 조정 실패', error instanceof Error ? error : undefined);
+            return DEFAULT_STREAM_QUALITY;
         }
-    };
+    }, []);
 
-    // 녹화 시작
-    const startRecording = async (cameraId?: string) => {
-        if (!cameraRef.current || isRecording) return;
+    // ============================================================================
+    // 스트림 시작
+    // ============================================================================
+
+    const startStream = useCallback(async (
+        cameraId: string,
+        quality?: Partial<StreamQuality>
+    ): Promise<void> => {
+        if (isStartingStreamRef.current) {
+            logStreaming(cameraId, 'startStream', '이미 스트림 시작 중입니다');
+            return;
+        }
+
+        if (activeStreamsRef.current.has(cameraId)) {
+            logStreaming(cameraId, 'startStream', '이미 활성 스트림이 있습니다');
+            return;
+        }
+
+        isStartingStreamRef.current = true;
+        setLoading(true);
 
         try {
-            setError(null);
+            logStreaming(cameraId, 'startStream', '스트림 시작');
 
-            // 카메라 ID가 없으면 기본값 사용
-            const recordingCameraId = cameraId || `CAM_${Date.now()}`;
+            // 최적 품질 결정
+            const optimalQuality = await getOptimalStreamQuality();
+            const finalQuality = { ...optimalQuality, ...quality };
 
-            // 녹화 서비스 설정 업데이트
-            recordingService.updateSettings(recordingSettings);
+            // 스트리밍 서비스에서 스트림 시작
+            const stream = await streamingService.startStream(cameraId, finalQuality);
 
-            // 녹화 시작
-            const session = await recordingService.startRecording(cameraRef, recordingCameraId);
-
-            setActiveRecording(session);
-            currentRecordingSessionRef.current = session.id;
-            setIsRecording(true);
-            setRecordingTime(0);
-
-            // 녹화 시간 타이머 시작
-            recordingIntervalRef.current = setInterval(() => {
-                setRecordingTime(prev => prev + 1);
-            }, 1000);
-
-            console.log('🎬 녹화 시작됨:', session.fileName);
-        } catch (err) {
-            console.error('❌ 녹화 시작 실패:', err);
-            setError(err instanceof Error ? err.message : "녹화를 시작할 수 없습니다.");
-            setIsRecording(false);
-        }
-    };
-
-    // 녹화 중지
-    const stopRecording = async () => {
-        if (!isRecording || !currentRecordingSessionRef.current) return;
-
-        try {
-            // 녹화 시간 타이머 정지
-            if (recordingIntervalRef.current) {
-                clearInterval(recordingIntervalRef.current);
-                recordingIntervalRef.current = undefined;
+            if (!stream) {
+                throw new Error('스트림을 시작할 수 없습니다.');
             }
 
-            // 녹화 서비스에서 중지
-            const completedSession = await recordingService.stopRecording(currentRecordingSessionRef.current);
+            // MediaStream 객체 생성
+            const mediaStream: MediaStream = {
+                id: cameraId,
+                stream,
+                quality: finalQuality,
+                isActive: true,
+                createdAt: Date.now(),
+            };
 
-            setIsRecording(false);
-            setRecordingTime(0);
-            setActiveRecording(undefined);
-            currentRecordingSessionRef.current = null;
+            // 활성 스트림에 추가
+            activeStreamsRef.current.set(cameraId, mediaStream);
 
-            if (completedSession) {
-                console.log('✅ 녹화 완료:', completedSession.fileName);
-                Alert.alert('녹화 완료', `${completedSession.fileName}이 저장되었습니다.`);
+            safeSetState(prev => ({
+                ...prev,
+                activeStreams: new Map(activeStreamsRef.current),
+                streamQuality: finalQuality,
+                isStreaming: true,
+                streamTime: 0,
+                error: null,
+                isLoading: false,
+                connectionStatus: 'connected',
+            }));
+
+            logStreaming(cameraId, 'startStream', '스트림 시작 완료', { quality: finalQuality });
+        } catch (error) {
+            handleError(error, 'startStream');
+            throw error;
+        } finally {
+            isStartingStreamRef.current = false;
+        }
+    }, [setLoading, getOptimalStreamQuality, safeSetState, handleError]);
+
+    // ============================================================================
+    // 스트림 중지
+    // ============================================================================
+
+    const stopStream = useCallback(async (cameraId: string): Promise<void> => {
+        if (isStoppingStreamRef.current) {
+            logStreaming(cameraId, 'stopStream', '이미 스트림 중지 중입니다');
+            return;
+        }
+
+        if (!activeStreamsRef.current.has(cameraId)) {
+            logStreaming(cameraId, 'stopStream', '활성 스트림이 없습니다');
+            return;
+        }
+
+        isStoppingStreamRef.current = true;
+
+        try {
+            logStreaming(cameraId, 'stopStream', '스트림 중지');
+
+            // 스트리밍 서비스에서 스트림 중지
+            await streamingService.stopStream(cameraId);
+
+            // 활성 스트림에서 제거
+            activeStreamsRef.current.delete(cameraId);
+
+            // 스트림 객체 정리
+            const mediaStream = activeStreamsRef.current.get(cameraId);
+            if (mediaStream?.stream) {
+                // WebRTC 스트림 정리
+                if (mediaStream.stream.getTracks) {
+                    mediaStream.stream.getTracks().forEach(track => track.stop());
+                }
             }
-        } catch (err) {
-            console.error('❌ 녹화 중지 실패:', err);
-            setError(err instanceof Error ? err.message : "녹화를 중지할 수 없습니다.");
-        }
-    };
 
-    // 스트리밍 시작
-    const startStreaming = async () => {
-        if (isStreaming) return;
+            safeSetState(prev => ({
+                ...prev,
+                activeStreams: new Map(activeStreamsRef.current),
+                isStreaming: activeStreamsRef.current.size > 0,
+                error: null,
+            }));
+
+            logStreaming(cameraId, 'stopStream', '스트림 중지 완료');
+        } catch (error) {
+            handleError(error, 'stopStream');
+            throw error;
+        } finally {
+            isStoppingStreamRef.current = false;
+        }
+    }, [safeSetState, handleError]);
+
+    // ============================================================================
+    // 스트림 품질 업데이트
+    // ============================================================================
+
+    const updateStreamQuality = useCallback((
+        cameraId: string,
+        quality: Partial<StreamQuality>
+    ): void => {
+        const mediaStream = activeStreamsRef.current.get(cameraId);
+        if (!mediaStream) {
+            logStreamingError(cameraId, 'updateStreamQuality', '활성 스트림을 찾을 수 없습니다');
+            return;
+        }
 
         try {
-            setError(null);
-            setIsStreaming(true);
-            setStreamingTime(0);
+            logStreaming(cameraId, 'updateStreamQuality', '스트림 품질 업데이트', quality);
 
-            // 실제 스트리밍 로직은 WebSocket으로 구현
-            // 여기서는 시뮬레이션
-            console.log("스트리밍 시작");
-        } catch (err) {
-            setError("스트리밍을 시작할 수 없습니다.");
-            setIsStreaming(false);
+            // 스트리밍 서비스에서 품질 업데이트
+            streamingService.updateStreamQuality(cameraId, quality);
+
+            // 로컬 상태 업데이트
+            const updatedMediaStream: MediaStream = {
+                ...mediaStream,
+                quality: { ...mediaStream.quality, ...quality },
+            };
+
+            activeStreamsRef.current.set(cameraId, updatedMediaStream);
+
+            safeSetState(prev => ({
+                ...prev,
+                activeStreams: new Map(activeStreamsRef.current),
+                streamQuality: updatedMediaStream.quality,
+            }));
+
+            logStreaming(cameraId, 'updateStreamQuality', '스트림 품질 업데이트 완료');
+        } catch (error) {
+            handleError(error, 'updateStreamQuality');
         }
-    };
+    }, [safeSetState, handleError]);
 
-    // 스트리밍 중지
-    const stopStreaming = async () => {
-        if (!isStreaming) return;
+    // ============================================================================
+    // 활성 스트림 조회
+    // ============================================================================
+
+    const getActiveStreams = useCallback((): Map<string, MediaStream> => {
+        return new Map(activeStreamsRef.current);
+    }, []);
+
+    // ============================================================================
+    // 스트림 상태 모니터링
+    // ============================================================================
+
+    const monitorStreamHealth = useCallback(async (cameraId: string): Promise<void> => {
+        const mediaStream = activeStreamsRef.current.get(cameraId);
+        if (!mediaStream) return;
 
         try {
-            setIsStreaming(false);
-            setStreamingTime(0);
-            console.log("스트리밍 중지");
-        } catch (err) {
-            setError("스트리밍을 중지할 수 없습니다.");
+            // 스트림 상태 확인
+            const health = await streamingService.getStreamHealth(cameraId);
+
+            if (health.status === 'degraded') {
+                logStreaming(cameraId, 'monitorStreamHealth', '스트림 품질 저하 감지', health);
+
+                // 자동 품질 조정
+                if (health.recommendedQuality) {
+                    updateStreamQuality(cameraId, health.recommendedQuality);
+                }
+            } else if (health.status === 'failed') {
+                logStreamingError(cameraId, 'monitorStreamHealth', '스트림 실패 감지', undefined, health);
+
+                // 스트림 재시작
+                await stopStream(cameraId);
+                await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+                await startStream(cameraId);
+            }
+        } catch (error) {
+            logStreamingError(cameraId, 'monitorStreamHealth', '스트림 상태 모니터링 실패', error instanceof Error ? error : undefined);
         }
-    };
+    }, [updateStreamQuality, stopStream, startStream]);
 
-    // 카메라 전환
-    const switchCamera = () => {
-        setCameraType(current => 
-            current === 'back' ? 'front' : 'back'
-        );
-    };
+    // ============================================================================
+    // 뷰어 수 업데이트
+    // ============================================================================
 
-    // 플래시 토글
-    const toggleFlash = () => {
-        setFlashMode(current => 
-            current === 'off' ? 'on' : 'off'
-        );
-    };
+    const updateViewerCount = useCallback((cameraId: string, count: number): void => {
+        safeSetState(prev => ({
+            ...prev,
+            viewerCount: count,
+        }));
+    }, [safeSetState]);
 
-    // 스냅샷 촬영
-    const takeSnapshot = async (): Promise<string | null> => {
-        if (!cameraRef.current) return null;
+    // ============================================================================
+    // 타이머 관리
+    // ============================================================================
 
-        try {
-            const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.8,
-                base64: false,
-            });
-
-            // 스냅샷을 갤러리에 저장
-            await MediaLibrary.saveToLibraryAsync(photo.uri);
-            
-            return photo.uri;
-        } catch (err) {
-            setError("스냅샷을 촬영할 수 없습니다.");
-            return null;
-        }
-    };
-
-    // 녹화 설정 업데이트
-    const updateRecordingSettings = (settings: Partial<CameraStreamState['recordingSettings']>) => {
-        setRecordingSettings(prev => ({ ...prev, ...settings }));
-        recordingService.updateSettings(settings);
-    };
-
-    // 타이머 효과
     useEffect(() => {
-        if (isRecording) {
-            recordingIntervalRef.current = setInterval(() => {
-                setRecordingTime(prev => prev + 1);
+        if (state.isStreaming) {
+            streamTimeIntervalRef.current = setInterval(() => {
+                safeSetState(prev => ({ ...prev, streamTime: prev.streamTime + 1 }));
             }, 1000);
         } else {
-            if (recordingIntervalRef.current) {
-                clearInterval(recordingIntervalRef.current);
-            }
-        }
-
-        if (isStreaming) {
-            streamingIntervalRef.current = setInterval(() => {
-                setStreamingTime(prev => prev + 1);
-            }, 1000);
-        } else {
-            if (streamingIntervalRef.current) {
-                clearInterval(streamingIntervalRef.current);
+            if (streamTimeIntervalRef.current) {
+                clearInterval(streamTimeIntervalRef.current);
+                streamTimeIntervalRef.current = null;
             }
         }
 
         return () => {
-            if (recordingIntervalRef.current) {
-                clearInterval(recordingIntervalRef.current);
-            }
-            if (streamingIntervalRef.current) {
-                clearInterval(streamingIntervalRef.current);
+            if (streamTimeIntervalRef.current) {
+                clearInterval(streamTimeIntervalRef.current);
             }
         };
-    }, [isRecording, isStreaming]);
+    }, [state.isStreaming, safeSetState]);
 
-    // 컴포넌트 마운트 시 권한 요청
+    // ============================================================================
+    // 스트림 상태 모니터링
+    // ============================================================================
+
     useEffect(() => {
-        requestPermissions();
+        if (!state.isStreaming) return;
+
+        const healthCheckInterval = setInterval(() => {
+            activeStreamsRef.current.forEach((_, cameraId) => {
+                monitorStreamHealth(cameraId);
+            });
+        }, 10000); // 10초마다 상태 확인
+
+        return () => {
+            clearInterval(healthCheckInterval);
+        };
+    }, [state.isStreaming, monitorStreamHealth]);
+
+    // ============================================================================
+    // WebSocket 이벤트 핸들러
+    // ============================================================================
+
+    useEffect(() => {
+        const handleStreamStarted = (data: { streamId: string; cameraId: string }) => {
+            logStreaming(data.cameraId, 'websocket', '스트림 시작됨', { streamId: data.streamId });
+
+            safeSetState(prev => ({
+                ...prev,
+                isStreaming: true,
+                connectionStatus: 'connected',
+                error: null,
+            }));
+        };
+
+        const handleStreamStopped = (data: { streamId: string; cameraId: string }) => {
+            logStreaming(data.cameraId, 'websocket', '스트림 중지됨', { streamId: data.streamId });
+
+            // 활성 스트림에서 제거
+            activeStreamsRef.current.delete(data.cameraId);
+
+            safeSetState(prev => ({
+                ...prev,
+                activeStreams: new Map(activeStreamsRef.current),
+                isStreaming: activeStreamsRef.current.size > 0,
+            }));
+        };
+
+        const handleViewerJoined = (data: { streamId: string; viewerId: string; cameraId: string }) => {
+            logStreaming(data.cameraId, 'websocket', '뷰어 참여', { viewerId: data.viewerId });
+
+            safeSetState(prev => ({
+                ...prev,
+                viewerCount: prev.viewerCount + 1,
+            }));
+        };
+
+        const handleViewerLeft = (data: { streamId: string; viewerId: string; cameraId: string }) => {
+            logStreaming(data.cameraId, 'websocket', '뷰어 퇴장', { viewerId: data.viewerId });
+
+            safeSetState(prev => ({
+                ...prev,
+                viewerCount: Math.max(0, prev.viewerCount - 1),
+            }));
+        };
+
+        const handleStreamError = (error: any) => {
+            logStreamingError('unknown', 'websocket', '스트림 오류', error instanceof Error ? error : undefined);
+            handleError(error, 'WebSocket');
+        };
+
+        // 이벤트 리스너 등록
+        streamingService.on('streamStarted', handleStreamStarted);
+        streamingService.on('streamStopped', handleStreamStopped);
+        streamingService.on('viewerJoined', handleViewerJoined);
+        streamingService.on('viewerLeft', handleViewerLeft);
+        streamingService.on('streamError', handleStreamError);
+
+        return () => {
+            // 이벤트 리스너 제거
+            streamingService.off('streamStarted', handleStreamStarted);
+            streamingService.off('streamStopped', handleStreamStopped);
+            streamingService.off('viewerJoined', handleViewerJoined);
+            streamingService.off('viewerLeft', handleViewerLeft);
+            streamingService.off('streamError', handleStreamError);
+        };
+    }, [safeSetState, handleError]);
+
+    // ============================================================================
+    // 컴포넌트 언마운트 시 정리
+    // ============================================================================
+
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+
+            // 활성 스트림 모두 정리
+            activeStreamsRef.current.forEach((mediaStream, cameraId) => {
+                try {
+                    streamingService.stopStream(cameraId);
+
+                    // WebRTC 스트림 정리
+                    if (mediaStream.stream.getTracks) {
+                        mediaStream.stream.getTracks().forEach(track => track.stop());
+                    }
+                } catch (error) {
+                    logStreamingError(cameraId, 'cleanup', '스트림 정리 실패', error instanceof Error ? error : undefined);
+                }
+            });
+
+            activeStreamsRef.current.clear();
+
+            // 타이머 정리
+            if (streamTimeIntervalRef.current) {
+                clearInterval(streamTimeIntervalRef.current);
+            }
+
+            logStreaming('unknown', 'cleanup', '카메라 스트림 훅 정리 완료');
+        };
     }, []);
 
-    const state: CameraStreamState = {
-        hasPermission,
-        cameraType,
-        flashMode,
-        isRecording,
-        isStreaming,
-        recordingTime,
-        streamingTime,
-        error,
-        activeRecording,
-        recordingSettings,
-    };
+    // ============================================================================
+    // 액션 객체 생성
+    // ============================================================================
 
-    const actions: CameraStreamActions = {
-        requestPermissions,
-        startRecording,
-        stopRecording,
-        startStreaming,
-        stopStreaming,
-        switchCamera,
-        toggleFlash,
-        takeSnapshot,
-        updateRecordingSettings,
-        cameraRef,
-    };
+    const actions: StreamActions = useMemo(() => ({
+        startStream,
+        stopStream,
+        updateStreamQuality,
+        getActiveStreams,
+    }), [
+        startStream,
+        stopStream,
+        updateStreamQuality,
+        getActiveStreams,
+    ]);
 
     return [state, actions];
 };
