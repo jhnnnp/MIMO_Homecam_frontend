@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radius } from '../../design/tokens';
 import { WebRTCVideoPlayer } from '../../components/WebRTCVideoPlayer';
+import { MjpegPlayer } from '../../components/MjpegPlayer';
 import { webrtcService } from '../../services/webrtcService';
 import { useViewerConnection } from '../../hooks/useViewerConnection';
 
@@ -26,92 +27,98 @@ interface ViewerLiveStreamScreenProps {
 export default function ViewerLiveStreamScreen({ route, navigation }: ViewerLiveStreamScreenProps) {
     const { cameraId, cameraName } = route.params;
     const [connectionState, connectionActions] = useViewerConnection();
-    const [remoteStream, setRemoteStream] = useState<any>(null);
-    const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [remoteStream, setRemoteStream] = useState<any>(null);
+    const [webRTCStream, setWebRTCStream] = useState<any>(null);
+    const [streamingStatus, setStreamingStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
 
-    // 스트림 연결
+    // 연결 상태 모니터링
     useEffect(() => {
-        const connectToStream = async () => {
-            try {
-            setIsLoading(true);
+        if (connectionState.isConnected && connectionState.remoteStream) {
+            console.log('📺 [뷰어 화면] 원격 스트림 수신됨:', connectionState.remoteStream.id);
+            setRemoteStream(connectionState.remoteStream);
+            setStreamingStatus('connected');
+            setIsLoading(false);
             setError(null);
+        } else if (connectionState.error) {
+            console.error('❌ [뷰어 화면] 연결 오류:', connectionState.error);
+            setError(connectionState.error);
+            setStreamingStatus('error');
+            setIsLoading(false);
+        }
+    }, [connectionState.isConnected, connectionState.remoteStream, connectionState.error]);
 
-                console.log(`👁️ 스트림 연결 시도: ${cameraId}`);
+    // WebRTC 스트림 시작
+    useEffect(() => {
+        const startWebRTCStream = async () => {
+            try {
+                console.log('🎥 [뷰어 화면] WebRTC 스트림 시작:', cameraId);
 
-                // WebRTC 스트림 시작
-                const webRTCStream = await webrtcService.startViewing(
+                const stream = await webrtcService.startViewing(
                     cameraId,
                     connectionState.viewerId || 'VIEWER_DEFAULT'
                 );
 
+                setWebRTCStream(stream);
+
                 // 스트림 수신 콜백 설정
-                webRTCStream.onStreamReceived = (stream: any) => {
-                    console.log('📺 원격 스트림 수신됨:', stream.id);
-                    setRemoteStream(stream);
-                    setIsConnected(true);
+                stream.onStreamReceived = (remoteStream: any) => {
+                    console.log('📺 [뷰어 화면] WebRTC 원격 스트림 수신:', remoteStream);
+                    setRemoteStream(remoteStream);
+                    setStreamingStatus('connected');
                     setIsLoading(false);
                 };
 
                 // 연결 상태 모니터링
-                const checkConnection = setInterval(() => {
-                    if (webRTCStream.isConnected) {
-                setIsConnected(true);
-                setIsLoading(false);
-                        clearInterval(checkConnection);
-                    }
-                }, 1000);
-
-                // 30초 타임아웃
-                setTimeout(() => {
-                    if (!isConnected) {
-                        setError('스트림 연결 시간이 초과되었습니다.');
+                webrtcService.on('connection_state_changed', (streamId: string, state: string) => {
+                    console.log('🔗 [뷰어 화면] WebRTC 연결 상태:', state);
+                    if (state === 'connected') {
+                        setStreamingStatus('connected');
                         setIsLoading(false);
-                        clearInterval(checkConnection);
+                    } else if (state === 'failed' || state === 'disconnected') {
+                        setStreamingStatus('error');
+                        setError('WebRTC 연결에 실패했습니다.');
+                        setIsLoading(false);
                     }
-                }, 30000);
+                });
 
             } catch (error) {
-                console.error('❌ 스트림 연결 실패:', error);
-                setError('스트림에 연결할 수 없습니다.');
+                console.error('❌ [뷰어 화면] WebRTC 스트림 시작 실패:', error);
+                setError('WebRTC 스트림을 시작할 수 없습니다.');
+                setStreamingStatus('error');
                 setIsLoading(false);
             }
         };
 
-        if (connectionState.isConnected && cameraId) {
-            connectToStream();
+        if (connectionState.isConnected && !webRTCStream) {
+            startWebRTCStream();
         }
-
-        // 정리
-        return () => {
-            if (remoteStream) {
-                remoteStream.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, [connectionState.isConnected, cameraId]);
+    }, [connectionState.isConnected, cameraId, connectionState.viewerId]);
 
     const handleDisconnect = async () => {
         try {
-            if (remoteStream) {
-                remoteStream.getTracks().forEach(track => track.stop());
+            console.log('🔌 [뷰어 화면] 연결 해제 중...');
+
+            // WebRTC 스트림 정리
+            if (connectionState.currentStream) {
+                await webrtcService.stopStream(connectionState.currentStream.id);
             }
 
-            await webrtcService.stopAllStreams();
-            setRemoteStream(null);
-            setIsConnected(false);
+            // 연결 해제
+            await connectionActions.disconnect();
 
-            Alert.alert('연결 종료', '스트림 연결이 종료되었습니다.');
             navigation.goBack();
         } catch (error) {
-            console.error('❌ 연결 종료 실패:', error);
+            console.error('❌ [뷰어 화면] 연결 해제 실패:', error);
+            Alert.alert('오류', '연결을 해제하는 중 오류가 발생했습니다.');
         }
     };
 
     const handleReconnect = async () => {
         setError(null);
         setIsLoading(true);
-        setIsConnected(false);
+        // setIsConnected(false); // This line was removed as per the new_code
 
         // 재연결 로직
         if (connectionState.isConnected) {
@@ -121,25 +128,25 @@ export default function ViewerLiveStreamScreen({ route, navigation }: ViewerLive
                     connectionState.viewerId || 'VIEWER_DEFAULT'
                 );
 
-                webRTCStream.onStreamReceived = (stream: any) => {
-                    setRemoteStream(stream);
-            setIsConnected(true);
-            setIsLoading(false);
-                };
+                // webRTCStream.onStreamReceived = (stream: any) => { // This line was removed as per the new_code
+                //     setRemoteStream(stream); // This line was removed as per the new_code
+                //     setIsConnected(true); // This line was removed as per the new_code
+                //     setIsLoading(false); // This line was removed as per the new_code
+                // }; // This line was removed as per the new_code
             } catch (error) {
                 setError('재연결에 실패했습니다.');
                 setIsLoading(false);
-    }
+            }
         }
     };
 
     return (
         <SafeAreaView style={styles.container}>
-                    <View style={styles.header}>
-                        <TouchableOpacity
-                            style={styles.backButton}
-                            onPress={() => navigation.goBack()}
-                        >
+            <View style={styles.header}>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
+                >
                     <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
 
@@ -168,53 +175,72 @@ export default function ViewerLiveStreamScreen({ route, navigation }: ViewerLive
                                 onPress={handleReconnect}
                             >
                                 <Text style={styles.retryButtonText}>다시 연결</Text>
-                        </TouchableOpacity>
+                            </TouchableOpacity>
                         </View>
                     ) : (
-                        <WebRTCVideoPlayer
-                            stream={remoteStream}
-                            isLocal={false}
-                            style={styles.videoPlayer}
-                        />
-                    )}
-                </View>
+                        isLoading ? (
+                            <View style={styles.loadingContainer}>
+                                <Ionicons name="videocam" size={64} color={colors.primary} />
+                                <Text style={styles.loadingText}>스트림 연결 중...</Text>
+                                <Text style={styles.loadingSubtext}>WebRTC 연결을 설정하고 있습니다</Text>
+                            </View>
+                        ) : remoteStream ? (
+                            <WebRTCVideoPlayer
+                                stream={remoteStream}
+                                style={styles.videoPlayer}
+                                onError={(error) => {
+                                    console.error('📺 [뷰어 화면] 비디오 오류:', error);
+                                    setError('비디오 스트림 오류가 발생했습니다.');
+                                }}
+                            />
+                        ) : connectionState.viewerMediaUrl ? (
+                            <MjpegPlayer url={connectionState.viewerMediaUrl} style={styles.videoPlayer} />
+                        ) : (
+                            <View style={styles.noStreamContainer}>
+                                <Ionicons name="videocam-off" size={64} color={colors.textSecondary} />
+                                <Text style={styles.noStreamText}>스트림을 기다리는 중...</Text>
+                                <Text style={styles.noStreamSubtext}>홈캠에서 스트리밍을 시작해주세요</Text>
+                            </View>
+                        )
+                    )
+            </View>
 
                 {/* 연결 상태 */}
                 <View style={styles.statusContainer}>
                     <View style={styles.statusRow}>
-                        <View style={[styles.statusDot, { backgroundColor: isConnected ? colors.success : colors.warning }]} />
+                        <View style={[styles.statusDot, { backgroundColor: connectionState.isConnected ? colors.success : colors.warning }]} />
                         <Text style={styles.statusText}>
-                            {isLoading ? '연결 중...' : isConnected ? '연결됨' : '연결 안됨'}
+                            {isLoading ? '연결 중...' : connectionState.isConnected ? '연결됨' : '연결 안됨'}
                         </Text>
                     </View>
 
-                            {isConnected && (
+                    {connectionState.isConnected && (
                         <View style={styles.streamInfo}>
                             <Text style={styles.streamInfoText}>실시간 스트리밍</Text>
-                            {remoteStream && (
-                                <Text style={styles.streamIdText}>스트림 ID: {remoteStream.id}</Text>
+                            {connectionState.remoteStream && (
+                                <Text style={styles.streamIdText}>스트림 ID: {connectionState.remoteStream.id}</Text>
                             )}
                         </View>
                     )}
-                                </View>
+                </View>
 
                 {/* 컨트롤 버튼들 */}
                 <View style={styles.controls}>
-                                    <TouchableOpacity
-                                        style={styles.controlButton}
+                    <TouchableOpacity
+                        style={styles.controlButton}
                         onPress={() => Alert.alert('스냅샷', '스냅샷 기능은 준비 중입니다.')}
-                                    >
+                    >
                         <Ionicons name="camera" size={24} color={colors.text} />
                         <Text style={styles.controlButtonText}>스냅샷</Text>
-                                    </TouchableOpacity>
+                    </TouchableOpacity>
 
-                                    <TouchableOpacity
+                    <TouchableOpacity
                         style={styles.controlButton}
                         onPress={() => Alert.alert('녹화', '녹화 기능은 준비 중입니다.')}
-                                    >
+                    >
                         <Ionicons name="videocam" size={24} color={colors.text} />
                         <Text style={styles.controlButtonText}>녹화</Text>
-                                    </TouchableOpacity>
+                    </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.controlButton}
@@ -225,7 +251,7 @@ export default function ViewerLiveStreamScreen({ route, navigation }: ViewerLive
                     </TouchableOpacity>
                 </View>
             </View>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }
 
@@ -351,5 +377,41 @@ const styles = StyleSheet.create({
         ...typography.caption,
         color: colors.textSecondary,
         marginTop: spacing.xs,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing.xl,
+    },
+    loadingText: {
+        ...typography.h3,
+        color: colors.primary,
+        textAlign: 'center',
+        marginTop: spacing.md,
+    },
+    loadingSubtext: {
+        ...typography.body,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        marginTop: spacing.sm,
+    },
+    noStreamContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing.xl,
+    },
+    noStreamText: {
+        ...typography.h3,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        marginTop: spacing.md,
+    },
+    noStreamSubtext: {
+        ...typography.body,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        marginTop: spacing.sm,
     },
 });
