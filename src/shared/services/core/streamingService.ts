@@ -302,6 +302,9 @@ class StreamingService extends EventEmitter {
             streamingLogger.debug('Received message', { type: message.type });
 
             switch (message.type) {
+                case 'connected':
+                    this.handleConnected(message.data);
+                    break;
                 case 'client_id':
                     this.handleClientId(message.data);
                     break;
@@ -400,6 +403,13 @@ class StreamingService extends EventEmitter {
         } catch (error) {
             streamingLogger.error('WebRTC signaling error', error as Error, { data });
         }
+    }
+
+    // WebSocket 연결 확인 처리
+    private handleConnected(data: any): void {
+        console.log('✅ [WebSocket] 연결 확인 메시지 수신:', data);
+        streamingLogger.debug('WebSocket connection confirmed', { data });
+        this.emit('websocket_connected', data);
     }
 
     // 클라이언트 ID 처리
