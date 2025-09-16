@@ -89,33 +89,113 @@ class SecureTokenManager implements TokenManager {
         try {
             const refreshToken = await this.getRefreshToken();
             if (!refreshToken) {
+                apiLogger.warn('리프레시 토큰이 없음');
                 throw createAuthError('리프레시 토큰이 없습니다.', 'NO_REFRESH_TOKEN');
             }
 
-            // 토큰 갱신 API 호출
+            apiLogger.info('토큰 갱신 API 호출 시작');
+
+            // 토큰 갱신 API 호출 (별도의 axios 인스턴스 사용하여 인터셉터 무한루프 방지)
             const response = await axios.post(`${getApiBaseUrl()}/auth/refresh`, {
                 refreshToken,
             }, {
-                timeout: 10000,
+                timeout: 15000, // 타임아웃 증가
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            apiLogger.info('토큰 갱신 응답 수신:', {
+                status: response.status,
+                hasData: !!response.data,
+                hasAccessToken: !!response.data?.data?.accessToken
             });
 
             if (response.data?.ok && response.data?.data?.accessToken) {
                 const { accessToken, refreshToken: newRefreshToken } = response.data.data;
 
+                // 토큰 유효성 검증
+                if (!this.isValidToken(accessToken)) {
+                    throw createAuthError('유효하지 않은 액세스 토큰', 'INVALID_ACCESS_TOKEN');
+                }
+
                 // 기존 토큰 제거 후 새 토큰 저장 (단일 세션 보장)
                 await this.clearTokens();
                 await this.setTokens(accessToken, newRefreshToken);
 
-                apiLogger.info('Token refreshed successfully');
+                apiLogger.info('토큰 갱신 성공');
                 return accessToken;
             }
 
+            apiLogger.warn('토큰 갱신 응답이 유효하지 않음:', response.data);
             throw createAuthError('토큰 갱신에 실패했습니다.', 'REFRESH_FAILED');
-        } catch (error) {
-            apiLogger.error('Token refresh failed', error as Error);
+        } catch (error: any) {
+            apiLogger.error('토큰 갱신 실패:', {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data
+            });
+            
             // 토큰 갱신 실패 시 기존 토큰도 제거
             await this.clearTokens();
             return null;
+        }
+    }
+
+    private isValidToken(token: string): boolean {
+        if (!token || typeof token !== 'string') {
+            return false;
+        }
+
+        try {
+            // JWT 토큰 기본 구조 검증 (header.payload.signature)
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                return false;
+            }
+
+            // Base64 디코딩 가능한지 확인
+            const payload = JSON.parse(atob(parts[1]));
+            
+            // 만료 시간 확인
+            if (payload.exp && payload.exp * 1000 < Date.now()) {
+                apiLogger.warn('토큰이 만료됨');
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            apiLogger.warn('토큰 유효성 검증 실패:', error);
+            return false;
+        }
+    }
+
+    private isTokenExpiringSoon(token: string, bufferMinutes: number = 5): boolean {
+        if (!token || typeof token !== 'string') {
+            return false;
+        }
+
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                return false;
+            }
+
+            const payload = JSON.parse(atob(parts[1]));
+            
+            if (payload.exp) {
+                const expirationTime = payload.exp * 1000;
+                const bufferTime = bufferMinutes * 60 * 1000;
+                const currentTime = Date.now();
+                
+                // 현재 시간 + 버퍼 시간이 만료 시간보다 크면 곧 만료됨
+                return (currentTime + bufferTime) >= expirationTime;
+            }
+
+            return false;
+        } catch (error) {
+            apiLogger.warn('토큰 만료 시간 확인 실패:', error);
+            return false;
         }
     }
 }
@@ -147,8 +227,23 @@ class ApiClient {
         // 요청 인터셉터
         this.client.interceptors.request.use(
             async (config) => {
-                const token = await this.tokenManager.getAccessToken();
+                let token = await this.tokenManager.getAccessToken();
+                
                 if (token) {
+                    // 토큰 만료 사전 체크 (5분 전 갱신)
+                    if (this.isTokenExpiringSoon(token)) {
+                        apiLogger.info('토큰이 곧 만료됨 - 사전 갱신 시도');
+                        try {
+                            const newToken = await this.handleTokenRefresh();
+                            if (newToken) {
+                                token = newToken;
+                                apiLogger.info('토큰 사전 갱신 성공');
+                            }
+                        } catch (error) {
+                            apiLogger.warn('토큰 사전 갱신 실패 - 기존 토큰 사용', error as Error);
+                        }
+                    }
+                    
                     config.headers.Authorization = `Bearer ${token}`;
                 }
 
@@ -175,19 +270,25 @@ class ApiClient {
             async (error) => {
                 const originalRequest = error.config;
 
-                if (error.response?.status === 401 && !originalRequest._retry) {
+                // 401 또는 403 에러 시 토큰 갱신 시도
+                if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
                     originalRequest._retry = true;
 
                     try {
+                        apiLogger.info(`${error.response.status} 에러 발생 - 토큰 갱신 시도`);
                         const newToken = await this.handleTokenRefresh();
+                        
                         if (newToken) {
                             originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                            apiLogger.info('토큰 갱신 성공 - 원본 요청 재시도');
                             return this.client(originalRequest);
+                        } else {
+                            apiLogger.warn('토큰 갱신 실패 - 로그아웃 처리');
+                            await this.handleAuthFailure();
                         }
                     } catch (refreshError) {
-                        // 리프레시 토큰도 만료된 경우 로그아웃 처리
-                        await this.tokenManager.clearTokens();
-                        apiLogger.logAuthEvent('Auto logout due to token refresh failure');
+                        apiLogger.error('토큰 갱신 중 오류 발생', refreshError as Error);
+                        await this.handleAuthFailure();
                     }
                 }
 
@@ -223,6 +324,23 @@ class ApiClient {
             throw error;
         } finally {
             this.isRefreshing = false;
+        }
+    }
+
+    private async handleAuthFailure(): Promise<void> {
+        try {
+            // 모든 토큰 제거
+            await this.tokenManager.clearTokens();
+            apiLogger.logAuthEvent('Auto logout due to authentication failure');
+            
+            // 전역 인증 상태 초기화 이벤트 발생 (authStore에서 처리)
+            if (typeof window !== 'undefined' && window.dispatchEvent) {
+                window.dispatchEvent(new CustomEvent('auth:logout', { 
+                    detail: { reason: 'token_expired' }
+                }));
+            }
+        } catch (error) {
+            apiLogger.error('Auth failure handling error', error as Error);
         }
     }
 

@@ -26,14 +26,23 @@ export interface AuthState {
     getAccessToken: () => string | null;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
-    // 초기 상태
-    user: null,
-    accessToken: null,
-    refreshToken: null,
-    isAuthenticated: false,
-    isLoading: false,
-    error: null,
+export const useAuthStore = create<AuthState>((set, get) => {
+    // 전역 인증 이벤트 리스너 설정
+    if (typeof window !== 'undefined') {
+        window.addEventListener('auth:logout', async (event: any) => {
+            console.log('🔄 전역 인증 실패 이벤트 수신:', event.detail?.reason);
+            await get().logout();
+        });
+    }
+
+    return {
+        // 초기 상태
+        user: null,
+        accessToken: null,
+        refreshToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
 
     // 로그인
     login: async (email: string, password: string) => {
@@ -174,12 +183,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // 현재 사용자 정보 가져오기
     getCurrentUser: async () => {
+        const currentState = get();
+        
+        // 이미 로딩 중이거나 토큰이 없으면 스킵
+        if (currentState.isLoading || !currentState.accessToken) {
+            console.log('🔄 [GET CURRENT USER] 스킵 - 로딩 중이거나 토큰 없음');
+            return;
+        }
+
         set({ isLoading: true, error: null });
 
         try {
             console.log('👤 [GET CURRENT USER] 사용자 정보 요청 시작');
             const response = await authService.getCurrentUser();
-            console.log('📊 [GET CURRENT USER] 응답:', response.ok ? '성공' : '실패');
+            console.log('📊 [GET CURRENT USER] 응답:', {
+                ok: response.ok,
+                hasData: !!response.data,
+                error: response.error?.message
+            });
 
             if (response.ok && response.data) {
                 console.log('✅ [GET CURRENT USER] 사용자 정보 설정 완료');
@@ -187,24 +208,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     user: response.data,
                     isAuthenticated: true,
                     isLoading: false,
+                    error: null,
                 });
             } else {
                 console.log('❌ [GET CURRENT USER] 사용자 정보 가져오기 실패:', response.error?.message);
+                
+                // 403/401 에러인 경우 토큰 문제로 간주하여 로그아웃
+                if (response.error?.code === 'UNAUTHORIZED' || response.error?.code === 'FORBIDDEN') {
+                    console.log('🔓 [GET CURRENT USER] 인증 오류 - 자동 로그아웃');
+                    await get().logout();
+                } else {
+                    set({
+                        isLoading: false,
+                        error: response.error?.message || '사용자 정보를 가져올 수 없어요.',
+                    });
+                }
+            }
+        } catch (error: any) {
+            console.log('❌ [GET CURRENT USER] 네트워크 오류:', {
+                message: error.message,
+                status: error.response?.status
+            });
+            
+            // 네트워크 오류인 경우에는 로그아웃하지 않고 에러만 표시
+            if (error.response?.status === 401 || error.response?.status === 403) {
+                console.log('🔓 [GET CURRENT USER] 인증 오류 - 자동 로그아웃');
+                await get().logout();
+            } else {
                 set({
-                    user: null,
-                    isAuthenticated: false,
                     isLoading: false,
-                    error: response.error?.message,
+                    error: '사용자 정보를 가져올 수 없어요. 네트워크를 확인해주세요.',
                 });
             }
-        } catch (error) {
-            console.log('❌ [GET CURRENT USER] 네트워크 오류:', error);
-            set({
-                user: null,
-                isAuthenticated: false,
-                isLoading: false,
-                error: '사용자 정보를 가져올 수 없어요.',
-            });
         }
     },
 
@@ -353,4 +388,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
         }
     },
-})); 
+}});
+}); 
