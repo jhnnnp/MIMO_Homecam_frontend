@@ -10,7 +10,7 @@ import {
     Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, layout, radius, elevation } from '../design/tokens';
+import { colors, typography, spacing, layout, radius, elevation } from '@/design/tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface AppBarAction {

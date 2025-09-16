@@ -13,11 +13,11 @@ import {
     StreamActions,
     StreamQuality,
     MediaStream
-} from '../types/hooks';
-import streamingService from '../services/streamingService';
-import recordingService from '../services/recordingService';
-import settingsService from '../services/settingsService';
-import { logger, logStreaming, logStreamingError } from '../utils/logger';
+} from '@/shared/types/hooks';
+import streamingService from '@/features/../shared/services/core/streamingService';
+import recordingService from '../../recording/services/recordingService';
+import settingsService from '../../settings/services/settingsService';
+import { logger, logStreaming, logStreamingError } from '@/shared/utils/logger';
 
 // ============================================================================
 // 상수 정의

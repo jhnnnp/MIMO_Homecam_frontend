@@ -6,7 +6,7 @@ import {
     TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing } from '../design/tokens';
+import { colors, typography, spacing } from '@/design/tokens';
 import Button from './Button';
 
 export interface EmptyStateProps {

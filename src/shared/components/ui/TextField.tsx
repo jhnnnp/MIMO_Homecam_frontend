@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, Ref } from 'react';
 import { View, TextInput, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle, KeyboardTypeOptions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, radius, motion } from '../design/tokens';
+import { colors, typography, spacing, radius, motion } from '@/design/tokens';
 
 export interface TextFieldProps {
     label: string;

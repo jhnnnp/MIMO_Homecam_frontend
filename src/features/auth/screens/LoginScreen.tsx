@@ -21,10 +21,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Toast from 'react-native-toast-message';
 
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '@/shared/stores/authStore';
 // 실제 앱에서는 이 컴포넌트들을 별도 파일로 분리하여 관리하는 것이 좋습니다.
-// import { Button, TextField, Card } from '../components';
-// import { colors, typography, spacing, radius, elevation } from '../design/tokens';
+// import { Button, TextField, Card } from '@/features/../shared/components';
+// import { colors, typography, spacing, radius, elevation } from '@/design/tokens';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -134,7 +134,7 @@ export default function LoginScreen({ navigation }: any) {
                                 <View style={styles.logoContainer}>
                                     <View style={styles.logoWrapper}>
                                         <Image
-                                            source={require('../../MainLogo.png')}
+                                            source={require('../../../../MainLogo.png')}
                                             style={styles.logo}
                                             resizeMode="contain"
                                         />

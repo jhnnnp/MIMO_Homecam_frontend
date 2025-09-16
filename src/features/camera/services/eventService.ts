@@ -1,8 +1,8 @@
-import { ApiResponse, Event, Recording } from '../types/api';
-import api from './api';
-import { createLogger } from '../utils/logger';
-import { withErrorHandling, createValidationError } from '../utils/errorHandler';
-import config from '../config';
+import { ApiResponse, Event, Recording } from '@/shared/types/api';
+import api from '@/features/../shared/services/api/api';
+import { createLogger } from '@/shared/utils/logger';
+import { withErrorHandling, createValidationError } from '../../../shared/utils/errorHandler';
+import config from '@/app/config';
 import eventMockData from '../mocks/eventData.json';
 
 // 이벤트 서비스 로거

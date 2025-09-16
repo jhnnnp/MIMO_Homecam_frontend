@@ -16,9 +16,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAuthStore } from '../stores/authStore';
-import { Button, TextField, Card, AppBar } from '../components';
-import { colors, typography, spacing, radius, elevation } from '../design/tokens';
+import { useAuthStore } from '@/shared/stores/authStore';
+import { Button, TextField, Card, AppBar } from '@/features/../shared/components';
+import { colors, typography, spacing, radius, elevation } from '@/design/tokens';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 

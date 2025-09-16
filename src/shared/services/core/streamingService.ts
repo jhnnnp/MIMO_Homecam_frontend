@@ -1,8 +1,8 @@
-import { createLogger } from '../utils/logger';
-import { withErrorHandling, createNetworkError, createTimeoutError } from '../utils/errorHandler';
-import { webrtcService } from './webrtcService';
-import { getWebSocketUrl } from '../config';
-import { useAuthStore } from '../stores/authStore';
+import { createLogger } from '@/shared/utils/logger';
+import { withErrorHandling, createNetworkError, createTimeoutError } from '@/shared/utils/errorHandler';
+import { webrtcService } from '@/shared/services/core/webrtcService';
+import { getWebSocketUrl } from '@/app/config';
+import { useAuthStore } from '@/shared/stores/authStore';
 
 // 스트리밍 서비스 로거
 const streamingLogger = createLogger('StreamingService');

@@ -6,7 +6,7 @@ import {
     ViewStyle,
     TextStyle,
 } from 'react-native';
-import { colors, typography, spacing } from '../design/tokens';
+import { colors, typography, spacing } from '@/design/tokens';
 
 export interface LoadingStateProps {
     message?: string;

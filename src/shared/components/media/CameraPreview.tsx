@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Camera, CameraType, FlashMode } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, radius } from "../design/tokens";
+import { colors, spacing, radius } from '@/design/tokens';
 
 interface CameraPreviewProps {
     cameraRef: React.RefObject<Camera>;

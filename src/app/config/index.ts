@@ -1,6 +1,6 @@
-import { simpleNetworkDiscovery } from '../services/simpleNetworkDiscovery';
-import { logger } from '../utils/logger';
-import { networkUtils } from '../utils/networkUtils';
+import { simpleNetworkDiscovery } from '@/features/connection/services/simpleNetworkDiscovery';
+import { logger } from '@/shared/utils/logger';
+import { networkUtils } from '@/shared/utils/networkUtils';
 
 interface AppConfig {
     apiBaseUrl: string;

@@ -1,4 +1,4 @@
-import api from './api';
+import api from '@/shared/services/api/api';
 import {
     LoginRequest,
     RegisterRequest,
@@ -8,15 +8,15 @@ import {
     EmailVerificationConfirmRequest,
     EmailVerificationStatus,
     ApiResponse,
-} from '../types/api';
-import { createLogger } from '../utils/logger';
+} from '@/features/../shared/types/api';
+import { createLogger } from '@/shared/utils/logger';
 import {
     withErrorHandling,
     createAuthError,
     createValidationError,
     ErrorType
-} from '../utils/errorHandler';
-import config from '../config';
+} from '../../../shared/utils/errorHandler';
+import config from '@/app/config';
 
 // 인증 서비스 로거
 const authLogger = createLogger('AuthService');

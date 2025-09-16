@@ -1,9 +1,9 @@
-import { ApiResponse, Camera } from '../types/api';
-import api from './api';
-import { createLogger } from '../utils/logger';
-import { withErrorHandling, createValidationError, ErrorType } from '../utils/errorHandler';
-import { streamingService } from './streamingService';
-import config from '../config';
+import { ApiResponse, Camera } from '@/shared/types/api';
+import api from '@/features/../shared/services/api/api';
+import { createLogger } from '@/shared/utils/logger';
+import { withErrorHandling, createValidationError, ErrorType } from '../../../shared/utils/errorHandler';
+import { streamingService } from '../../../shared/services/core/streamingService';
+import config from '@/app/config';
 import cameraMockData from '../mocks/cameraData.json';
 
 // 카메라 서비스 로거

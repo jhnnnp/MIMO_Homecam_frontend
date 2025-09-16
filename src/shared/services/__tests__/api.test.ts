@@ -1,6 +1,6 @@
-import { apiService } from '../api';
-import { config } from '../../config';
-import { logger } from '../../utils/logger';
+import { apiService } from '@/shared/services/api/api';
+import { config } from '@/app/config';
+import { logger } from '@/features/../shared/utils/logger';
 
 // Mock axios
 jest.mock('axios', () => ({

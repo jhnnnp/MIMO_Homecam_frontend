@@ -6,7 +6,7 @@ import {
     TextStyle,
     ViewProps,
 } from 'react-native';
-import { colors, typography, spacing, radius } from '../design/tokens';
+import { colors, typography, spacing, radius } from '@/design/tokens';
 
 export interface BadgeProps extends ViewProps {
     variant?: 'dot' | 'number' | 'status';

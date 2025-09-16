@@ -185,7 +185,7 @@ export const testWebSocketConnection = async (url: string): Promise<void> => {
 
 // MIMO WebSocket 서버 테스트
 export const testMIMOWebSocket = async (): Promise<void> => {
-    const { getWebSocketUrl } = await import('../config');
+    const { getWebSocketUrl } = await import('@/app/config');
     const url = getWebSocketUrl();
 
     console.log('🌐 [MIMO WebSocket 테스트] URL:', url);
@@ -197,7 +197,7 @@ export const testCameraRegistration = async (cameraId: string, cameraName: strin
     const tester = new WebSocketTester();
 
     try {
-        const { getWebSocketUrl } = await import('../config');
+        const { getWebSocketUrl } = await import('@/app/config');
         const url = getWebSocketUrl();
 
         // 연결
@@ -251,7 +251,7 @@ export const testViewerConnection = async (cameraId: string, viewerId: string): 
     const tester = new WebSocketTester();
 
     try {
-        const { getWebSocketUrl } = await import('../config');
+        const { getWebSocketUrl } = await import('../../app/config');
         const url = getWebSocketUrl();
 
         // 연결

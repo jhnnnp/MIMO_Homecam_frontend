@@ -14,13 +14,13 @@ import {
 } from 'react-native';
 import { Camera } from 'expo-camera';
 
-import { useCamera } from '../hooks/useCamera';
-import { useCameraConnection } from '../hooks/useCameraConnection';
+import { useCamera } from '@/features/$CURRENT_FEATURE$/hooks/useCamera';
+import { useCameraConnection } from '@/features/connection/hooks/useCameraConnection';
 import { useCameraStream } from '../hooks/useCameraStream';
 import { useEvent } from '../hooks/useEvent';
-import { useMotionDetection } from '../hooks/useMotionDetection';
+import { useMotionDetection } from '../../camera/hooks/useMotionDetection';
 import { useNotification } from '../hooks/useNotification';
-import { useViewerConnection } from '../hooks/useViewerConnection';
+import { useViewerConnection } from '../../connection/hooks/useViewerConnection';
 
 // ============================================================================
 // 카메라 훅 사용 예제

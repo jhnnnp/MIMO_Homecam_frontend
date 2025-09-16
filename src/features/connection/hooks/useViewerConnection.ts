@@ -10,10 +10,10 @@ import {
     ViewerConnectionActions,
     CameraStream,
     HookReturn
-} from '../types/hooks';
-import streamingService, { StreamConnection, CameraStream as ServiceCameraStream } from '../services/streamingService';
-import { webrtcService } from '../services/webrtcService';
-import { useAuthStore } from '../stores/authStore';
+} from '@/shared/types/hooks';
+import streamingService, { StreamConnection, CameraStream as ServiceCameraStream } from '@/shared/services/core/streamingService';
+import { webrtcService } from '@/shared/services/core/webrtcService';
+import { useAuthStore } from '@/shared/stores/authStore';
 import {
     APIError,
     AuthError,
@@ -21,13 +21,13 @@ import {
     ValidationError,
     logError,
     safeExecute
-} from '../utils/errorHandling';
+} from '../../../shared/utils/errorHandling';
 import {
     makeAuthenticatedRequest,
     validateAPIResponse
-} from '../utils/apiHelpers';
-import { logger, logViewer, logViewerError } from '../utils/logger';
-import { withErrorHandling, createNetworkError, createTimeoutError } from '../utils/errorHandler';
+} from '../../../shared/utils/apiHelpers';
+import { logger, logViewer, logViewerError } from '../../../shared/utils/logger';
+import { withErrorHandling, createNetworkError, createTimeoutError } from '../../../shared/utils/errorHandler';
 
 // ============================================================================
 // 타입 정의

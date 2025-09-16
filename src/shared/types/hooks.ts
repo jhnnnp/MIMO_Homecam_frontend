@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { Camera, CameraType, FlashMode } from 'expo-camera';
-import { ReactRef } from 'react';
+import { RefObject } from 'react';
 
 // ============================================================================
 // 공통 상태 타입
@@ -304,7 +304,7 @@ export interface CameraActions {
     toggleFlash: () => void;
     takeSnapshot: () => Promise<CameraPhoto | null>;
     updateRecordingSettings: (settings: Partial<RecordingSettings>) => void;
-    cameraRef: ReactRef<Camera>;
+    cameraRef: RefObject<Camera>;
 }
 
 export interface CameraConnectionActions {
@@ -338,7 +338,7 @@ export interface EventActions {
 export interface MotionDetectionActions {
     enableDetection: () => Promise<void>;
     disableDetection: () => void;
-    startDetection: (cameraRef: ReactRef<Camera>) => Promise<boolean>;
+    startDetection: (cameraRef: RefObject<Camera>) => Promise<boolean>;
     stopDetection: () => void;
     updateConfig: (config: Partial<MotionDetectionConfig>) => void;
     addZone: (zone: MotionZone) => void;

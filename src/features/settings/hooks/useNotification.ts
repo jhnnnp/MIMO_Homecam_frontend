@@ -12,10 +12,10 @@ import {
     NotificationActions,
     NotificationPayload,
     NotificationPermissions
-} from '../types/hooks';
-import { Notification } from '../types/api';
-import notificationService, { NotificationCreateRequest } from '../services/notificationService';
-import { logger, logNotification, logNotificationError } from '../utils/logger';
+} from '@/shared/types/hooks';
+import { Notification } from '@/features/../shared/types/api';
+import notificationService, { NotificationCreateRequest } from '../../settings/services/notificationService';
+import { logger, logNotification, logNotificationError } from '@/shared/utils/logger';
 
 // ============================================================================
 // Query Keys

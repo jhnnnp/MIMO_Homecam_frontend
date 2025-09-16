@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Image, StyleSheet, Text } from 'react-native';
-import { MediaWsClient } from '../services/mediaWsClient';
+import { MediaWsClient } from '@/shared/services/api/mediaWsClient';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';

@@ -1,7 +1,7 @@
 import { Camera } from 'expo-camera';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { notificationService } from './notificationService';
+import notificationService from '@/features/settings/services/notificationService';
 
 export interface MotionDetectionConfig {
     enabled: boolean;

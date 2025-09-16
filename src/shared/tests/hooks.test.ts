@@ -8,16 +8,16 @@ import { Camera } from 'expo-camera';
 import * as Notifications from 'expo-notifications';
 
 // 훅 임포트
-import { useCamera } from '../hooks/useCamera';
-import { useCameraConnection } from '../hooks/useCameraConnection';
+import { useCamera } from '@/features/$CURRENT_FEATURE$/hooks/useCamera';
+import { useCameraConnection } from '@/features/connection/hooks/useCameraConnection';
 import { useCameraStream } from '../hooks/useCameraStream';
 import { useEvent } from '../hooks/useEvent';
-import { useMotionDetection } from '../hooks/useMotionDetection';
+import { useMotionDetection } from '../../camera/hooks/useMotionDetection';
 import { useNotification } from '../hooks/useNotification';
-import { useViewerConnection } from '../hooks/useViewerConnection';
+import { useViewerConnection } from '../../connection/hooks/useViewerConnection';
 
 // 서비스 모킹
-jest.mock('../services/cameraService');
+jest.mock('@/features/$CURRENT_FEATURE$/services/cameraService');
 jest.mock('../services/streamingService');
 jest.mock('../services/eventService');
 jest.mock('../services/motionDetectionService');

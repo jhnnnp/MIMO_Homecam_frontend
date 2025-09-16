@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { ConnectionConnectResponse } from '../services/connectionService';
+import { ConnectionConnectResponse } from '@/features/$CURRENT_FEATURE$/services/connectionService';
 
 interface ConnectionInputProps {
   onConnect: (type: 'pin' | 'qr', data: string) => Promise<ConnectionConnectResponse | null>;

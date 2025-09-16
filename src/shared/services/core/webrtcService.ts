@@ -1,8 +1,8 @@
 import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
-import { createLogger } from '../utils/logger';
-import { withErrorHandling, createNetworkError, createTimeoutError } from '../utils/errorHandler';
-import config from '../config';
+import { createLogger } from '@/shared/utils/logger';
+import { withErrorHandling, createNetworkError, createTimeoutError } from '@/shared/utils/errorHandler';
+import config from '@/app/config';
 
 // WebRTC 서비스 로거
 const webrtcLogger = createLogger('WebRTCService');

@@ -1,5 +1,5 @@
 import { logger } from './logger';
-import config from '../config';
+import config from '@/app/config';
 
 // 에러 타입 정의
 export enum ErrorType {

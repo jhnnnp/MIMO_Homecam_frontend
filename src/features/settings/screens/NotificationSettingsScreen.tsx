@@ -10,11 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AppBar from '../components/AppBar';
-import Button from '../components/Button';
+import AppBar from '@/shared/components/layout/AppBar';
+import Button from '@/features/../shared/components/ui/Button';
 import * as Notifications from 'expo-notifications';
-import { colors, spacing, radius, elevation } from '../design/tokens';
-import { useNotifications, useUnreadNotifications, useNotificationStats } from '../hooks/useNotification';
+import { colors, spacing, radius, elevation } from '@/design/tokens';
+import { useNotifications, useUnreadNotifications, useNotificationStats } from '@/features/settings/hooks/useNotification';
 
 interface NotificationSettingsScreenProps {
     navigation: any;

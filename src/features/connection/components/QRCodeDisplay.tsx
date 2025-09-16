@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { ConnectionGenerateResponse } from '../services/connectionService';
+import { ConnectionGenerateResponse } from '@/features/connection/services/connectionService';
 
 interface QRCodeDisplayProps {
   connectionData: ConnectionGenerateResponse;

@@ -13,10 +13,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AppBar from '../components/AppBar';
-import { colors, spacing, radius, elevation, typography } from '../design/tokens';
+import AppBar from '@/shared/components/layout/AppBar';
+import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
+import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
 type WebSocketTestScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WebSocketTest'>;
 

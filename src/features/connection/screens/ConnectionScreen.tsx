@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { useConnection } from '../services/useConnection';
-import { QRCodeDisplay } from '../components/QRCodeDisplay';
-import { ConnectionInput } from '../components/ConnectionInput';
-import { Button } from '../components/Button';
-import { LoadingState } from '../components/LoadingState';
-import { ErrorState } from '../components/ErrorState';
+import { useConnection } from '@/features/connection/services/useConnection';
+import QRCodeDisplay from '@/features/connection/components/QRCodeDisplay';
+import ConnectionInput from '@/shared/components/form/ConnectionInput';
+import Button from '@/features/../shared/components/ui/Button';
+import LoadingState from '@/shared/components/feedback/LoadingState';
+import ErrorState from '../../../shared/components/feedback/ErrorState';
 
 interface ConnectionScreenProps {
   cameraId?: string;

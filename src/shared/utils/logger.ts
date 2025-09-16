@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import config from '../config';
+import config from '@/app/config';
 
 // ============================================================================
 // CENTRALIZED LOGGER - 중앙 로깅 시스템

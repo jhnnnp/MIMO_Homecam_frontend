@@ -35,14 +35,14 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 
 // Design System
-import { colors, spacing, radius, elevation, typography, enterpriseColors } from '../../design/tokens';
+import { colors, spacing, radius, elevation, typography, enterpriseColors } from '@/design/tokens';
 
 // Navigation Types
-import { CameraStackParamList } from '../../navigation/AppNavigator';
+import { CameraStackParamList } from '@/app/navigation/AppNavigator';
 
 // Utils
-import { logger } from '../../utils/logger';
-import { errorHandler } from '../../utils/errorHandler';
+import { logger } from '@/shared/utils/logger';
+import { errorHandler } from '@/features/../shared/utils/errorHandler';
 
 // Constants
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');

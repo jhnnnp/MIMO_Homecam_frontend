@@ -3,32 +3,37 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography } from '../design/tokens';
+import { colors, typography } from '@/design/tokens';
 
-// Screens
-import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
-import ModeSelectionScreen from '../screens/ModeSelectionScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import WebSocketTestScreen from '../screens/WebSocketTestScreen';
+// Auth Screens
+import LoginScreen from '@/features/auth/screens/LoginScreen';
+import RegisterScreen from '@/features/auth/screens/RegisterScreen';
+
+// Connection Screens
+import ModeSelectionScreen from '@/features/connection/screens/ModeSelectionScreen';
+
+// Settings Screens
+import SettingsScreen from '@/features/settings/screens/SettingsScreen';
+import MotionDetectionSettingsScreen from '@/features/settings/screens/MotionDetectionSettingsScreen';
+import NotificationSettingsScreen from '@/features/settings/screens/NotificationSettingsScreen';
 
 // Viewer Mode Screens
-import ViewerHomeScreen from '../screens/viewer/ViewerHomeScreen';
-import ViewerLiveStreamScreen from '../screens/viewer/ViewerLiveStreamScreen';
-import ViewerPinCodeScreen from '../screens/viewer/ViewerPinCodeScreen';
+import ViewerHomeScreen from '@/features/viewer/screens/ViewerHomeScreen';
+import ViewerLiveStreamScreen from '@/features/viewer/screens/ViewerLiveStreamScreen';
+import ViewerPinCodeScreen from '@/features/viewer/screens/ViewerPinCodeScreen';
+import ViewerQRScanScreen from '@/features/viewer/screens/ViewerQRScanScreen';
 
 // Camera Mode Screens
-import CameraHomeScreen from '../screens/camera/CameraHomeScreen';
-import CameraSettingsScreen from '../screens/camera/CameraSettingsScreen';
+import CameraHomeScreen from '@/features/camera/screens/CameraHomeScreen';
+import CameraSettingsScreen from '@/features/camera/screens/CameraSettingsScreen';
 
 // Recording Screens
-import RecordingListScreen from '../screens/RecordingListScreen';
+import RecordingListScreen from '@/features/recording/screens/RecordingListScreen';
 
-// Motion Detection & Notification Screens
-import MotionDetectionSettingsScreen from '../screens/MotionDetectionSettingsScreen';
-import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+// Test Screen
+import WebSocketTestScreen from '@/shared/components/examples/WebSocketTestScreen';
 
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '@/shared/stores/authStore';
 
 // Navigation Types
 export type RootStackParamList = {
@@ -36,6 +41,7 @@ export type RootStackParamList = {
     ModeSelection: undefined;
     ViewerHome: undefined;
     ViewerPinCode: undefined;
+    ViewerQRScan: undefined;
     LiveStream: { cameraId: string; cameraName: string; ipAddress: string; quality: string };
     CameraHome: undefined;
     CameraSettings: undefined;
@@ -108,6 +114,15 @@ export default function AppNavigator() {
                             options={{
                                 presentation: 'modal',
                                 gestureEnabled: true,
+                            }}
+                        />
+                        <RootStack.Screen
+                            name="ViewerQRScan"
+                            component={ViewerQRScanScreen}
+                            options={{
+                                presentation: 'modal',
+                                gestureEnabled: true,
+                                headerShown: false,
                             }}
                         />
                         <RootStack.Screen

@@ -6,7 +6,7 @@ import {
     TouchableOpacityProps,
     ViewProps,
 } from 'react-native';
-import { colors, spacing, radius, elevation } from '../design/tokens';
+import { colors, spacing, radius, elevation } from '@/design/tokens';
 
 export interface CardProps extends ViewProps {
     pressable?: boolean;

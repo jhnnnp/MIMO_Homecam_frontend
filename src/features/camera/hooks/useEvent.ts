@@ -11,11 +11,11 @@ import {
     EventPayload,
     EventFilters,
     EventStats
-} from '../types/hooks';
-import { Event, Recording } from '../types/api';
-import eventService, { EventCreateRequest, EventUpdateRequest } from '../services/eventService';
-import notificationService from '../services/notificationService';
-import { logger, logEvent, logEventError } from '../utils/logger';
+} from '@/shared/types/hooks';
+import { Event, Recording } from '@/features/../shared/types/api';
+import eventService, { EventCreateRequest, EventUpdateRequest } from '@/features/camera/services/eventService';
+import notificationService from '../../settings/services/notificationService';
+import { logger, logEvent, logEventError } from '@/shared/utils/logger';
 
 // ============================================================================
 // Query Keys

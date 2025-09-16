@@ -10,7 +10,7 @@ import {
     Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, radius, motion } from '../design/tokens';
+import { colors, typography, spacing, radius, motion } from '@/design/tokens';
 
 type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'ghost' | 'destructive';
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';

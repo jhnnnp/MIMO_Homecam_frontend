@@ -9,10 +9,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AppBar from '../components/AppBar';
-import { colors, spacing, radius, elevation } from '../design/tokens';
-import RecordingList from '../components/RecordingList';
-import { RecordingSession, recordingService } from '../services/recordingService';
+import AppBar from '@/shared/components/layout/AppBar';
+import { colors, spacing, radius, elevation } from '@/design/tokens';
+import RecordingList from '@/features/recording/components/RecordingList';
+import { RecordingSession, recordingService } from '@/features/recording/services/recordingService';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface RecordingListScreenProps {

@@ -6,25 +6,25 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Camera } from 'expo-camera';
 import { Alert } from 'react-native';
 
-import { 
-  MotionDetectionState, 
-  MotionDetectionActions, 
-  MotionDetectionConfig, 
-  MotionZone, 
-  MotionEvent, 
-  MotionDetectionStats 
-} from '../types/hooks';
+import {
+  MotionDetectionState,
+  MotionDetectionActions,
+  MotionDetectionConfig,
+  MotionZone,
+  MotionEvent,
+  MotionDetectionStats
+} from '@/shared/types/hooks';
 import {
   motionDetectionService,
   MotionDetectionConfig as ServiceConfig,
   MotionZone as ServiceZone,
   MotionEvent as ServiceEvent,
   MotionDetectionStats as ServiceStats,
-} from '../services/motionDetectionService';
+} from '@/features/camera/services/motionDetectionService';
 import eventService from '../services/eventService';
-import notificationService from '../services/notificationService';
-import settingsService from '../services/settingsService';
-import { logger, logMotion, logMotionError } from '../utils/logger';
+import notificationService from '@/features/settings/services/notificationService';
+import settingsService from '../../settings/services/settingsService';
+import { logger, logMotion, logMotionError } from '@/shared/utils/logger';
 
 // ============================================================================
 // 상수 정의
@@ -48,7 +48,7 @@ const EVENT_CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // 24시간
 // ============================================================================
 
 export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDetectionActions> => {
-  
+
   // ============================================================================
   // 상태 관리
   // ============================================================================
@@ -99,7 +99,7 @@ export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDet
   const handleError = useCallback((error: unknown, action: string) => {
     const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
     logMotionError(action, errorMessage, error instanceof Error ? error : undefined);
-    
+
     safeSetState(prev => ({
       ...prev,
       error: errorMessage,
@@ -123,7 +123,7 @@ export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDet
     try {
       // 설정 서비스에서 사용자 설정 가져오기
       const userSettings = await settingsService.getMotionDetectionSettings();
-      
+
       if (userSettings) {
         const updatedConfig: MotionDetectionConfig = {
           ...DEFAULT_CONFIG,
@@ -348,8 +348,8 @@ export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDet
         `${zone.name} 구역에서 움직임이 감지되었습니다!`,
         [
           { text: '확인', style: 'default' },
-          { 
-            text: '상세보기', 
+          {
+            text: '상세보기',
             onPress: () => {
               logMotion('handleZoneViolation', '상세보기 선택', { zoneId: zone.id, eventId: event.id });
             }
@@ -453,12 +453,12 @@ export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDet
 
       safeSetState(prev => ({
         ...prev,
-        zones: prev.zones.map(zone => 
+        zones: prev.zones.map(zone =>
           zone.id === zoneId ? { ...zone, ...updates } : zone
         ),
         config: {
           ...prev.config,
-          zones: prev.config.zones.map(zone => 
+          zones: prev.config.zones.map(zone =>
             zone.id === zoneId ? { ...zone, ...updates } : zone
           ),
         },
@@ -481,7 +481,7 @@ export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDet
   const cleanupEvents = useCallback((maxAge: number = EVENT_CLEANUP_INTERVAL): number => {
     try {
       const deletedCount = motionDetectionService.cleanupEvents(maxAge);
-      
+
       // 최근 이벤트 업데이트
       safeSetState(prev => ({
         ...prev,
@@ -509,7 +509,7 @@ export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDet
   const updateStats = useCallback(() => {
     try {
       const serviceStats = motionDetectionService.getStats();
-      
+
       const stats: MotionDetectionStats = {
         totalDetections: serviceStats.totalDetections,
         todayDetections: serviceStats.todayDetections,

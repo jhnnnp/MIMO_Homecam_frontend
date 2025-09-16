@@ -1,5 +1,5 @@
-import { ApiResponse, Settings } from '../types/api';
-import api from './api';
+import { ApiResponse, Settings } from '@/shared/types/api';
+import api from '@/features/../shared/services/api/api';
 
 export interface SettingsUpdateRequest {
     notificationEnabled?: boolean;

@@ -9,8 +9,8 @@ import {
     RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, radius, elevation } from '../design/tokens';
-import { RecordingSession, recordingService } from '../services/recordingService';
+import { colors, spacing, radius, elevation } from '@/design/tokens';
+import { RecordingSession, recordingService } from '@/features/recording/services/recordingService';
 
 interface RecordingListProps {
     onRecordingSelect?: (recording: RecordingSession) => void;

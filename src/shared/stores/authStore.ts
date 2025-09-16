@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { User } from '../types/api';
-import authService from '../services/authService';
+import { User } from '@/shared/types/api';
+import authService from '@/features/auth/services/authService';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

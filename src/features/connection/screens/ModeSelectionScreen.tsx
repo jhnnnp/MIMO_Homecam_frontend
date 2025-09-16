@@ -11,10 +11,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, radius, elevation, typography } from '../design/tokens';
+import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
-import Button from '../components/Button';
+import { RootStackParamList } from '@/app/navigation/AppNavigator';
+import Button from '@/shared/components/ui/Button';
 
 // HapticFeedback 안전한 import
 let Haptics: any = null;

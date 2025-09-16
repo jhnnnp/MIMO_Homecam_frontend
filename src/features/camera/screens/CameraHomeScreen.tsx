@@ -42,23 +42,23 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 
 // Design System
-import { colors, spacing, radius, elevation, typography } from '../../design/tokens';
+import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
 
 // Navigation Types
-import { CameraStackParamList } from '../../navigation/AppNavigator';
+import { CameraStackParamList } from '@/app/navigation/AppNavigator';
 import { useNavigation } from '@react-navigation/native';
-import { RootStackParamList } from '../../navigation/AppNavigator';
+import { RootStackParamList } from '@/features/../app/navigation/AppNavigator';
 
 // Hooks and Services
-import { useCameraConnection } from '../../hooks/useCameraConnection';
+import { useCameraConnection } from '../../connection/hooks/useCameraConnection';
 
 // Components
-import LoadingState from '../../components/LoadingState';
-import ErrorState from '../../components/ErrorState';
+import LoadingState from '@/shared/components/feedback/LoadingState';
+import ErrorState from '@/shared/components/feedback/ErrorState';
 
 // Utils
-import { logger } from '../../utils/logger';
-import { errorHandler } from '../../utils/errorHandler';
+import { logger } from '../../../shared/utils/logger';
+import { errorHandler } from '../../../shared/utils/errorHandler';
 
 // Constants
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');

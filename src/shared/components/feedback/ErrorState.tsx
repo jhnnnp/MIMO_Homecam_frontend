@@ -6,8 +6,8 @@ import {
     TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing } from '../design/tokens';
-import Button from './Button';
+import { colors, typography, spacing } from '@/design/tokens';
+import Button from '@/shared/components/ui/Button';
 
 export interface ErrorStateProps {
     title?: string;

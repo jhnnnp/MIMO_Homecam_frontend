@@ -17,10 +17,10 @@ import { Camera, CameraType, FlashMode } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 
 // 훅 임포트
-import { useCamera } from '../../hooks/useCamera';
+import { useCamera } from '@/features/$CURRENT_FEATURE$/hooks/useCamera';
 
 // 타입 임포트
-import { CameraState, CameraActions } from '../../types/hooks';
+import { CameraState, CameraActions } from '@/shared/types/hooks';
 
 // 상수
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');

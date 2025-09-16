@@ -16,11 +16,11 @@ import {
     CameraVideo,
     RecordingSession,
     RecordingSettings
-} from '../types/hooks';
-import { Camera as CameraApiType, CameraCreateRequest, CameraUpdateRequest } from '../types/api';
-import cameraService from '../services/cameraService';
-import recordingService from '../services/recordingService';
-import { logger, logCamera, logCameraError } from '../utils/logger';
+} from '@/shared/types/hooks';
+import { Camera as CameraApiType, CameraCreateRequest, CameraUpdateRequest } from '@/features/../shared/types/api';
+import cameraService from '@/features/camera/services/cameraService';
+import recordingService from '../../recording/services/recordingService';
+import { logger, logCamera, logCameraError } from '@/shared/utils/logger';
 
 // ============================================================================
 // Query Keys

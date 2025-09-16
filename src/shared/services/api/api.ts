@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import { ApiResponse } from '../types/api';
-import { getApiBaseUrl } from '../config';
-import { logger, createLogger } from '../utils/logger';
+import { ApiResponse } from '@/shared/types/api';
+import { getApiBaseUrl } from '@/app/config';
+import { logger, createLogger } from '@/shared/utils/logger';
 import {
     errorHandler,
     withRetry,
@@ -10,7 +10,7 @@ import {
     createAuthError,
     createTimeoutError,
     ErrorType
-} from '../utils/errorHandler';
+} from '@/shared/utils/errorHandler';
 
 // API 서비스 로거
 const apiLogger = createLogger('ApiService');

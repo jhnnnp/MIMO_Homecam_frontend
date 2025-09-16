@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AppBar from '../components/AppBar';
-import Button from '../components/Button';
-import { colors, spacing, radius, elevation } from '../design/tokens';
+import AppBar from '@/shared/components/layout/AppBar';
+import Button from '@/features/../shared/components/ui/Button';
+import { colors, spacing, radius, elevation } from '@/design/tokens';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useMotionDetection } from '../hooks/useMotionDetection';
-import { MotionZone } from '../services/motionDetectionService';
+import { useMotionDetection } from '../../camera/hooks/useMotionDetection';
+import { MotionZone } from '../../camera/services/motionDetectionService';
 
 interface MotionDetectionSettingsScreenProps {
     navigation: any;

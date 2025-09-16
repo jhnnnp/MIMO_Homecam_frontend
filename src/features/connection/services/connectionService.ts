@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api } from '@/shared/services/api/api';
 
 export interface ConnectionGenerateRequest {
   cameraId: string;
