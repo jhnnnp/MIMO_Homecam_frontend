@@ -135,7 +135,7 @@ class SecureTokenManager implements TokenManager {
                 status: error.response?.status,
                 data: error.response?.data
             });
-            
+
             // 토큰 갱신 실패 시 기존 토큰도 제거
             await this.clearTokens();
             return null;
@@ -156,7 +156,7 @@ class SecureTokenManager implements TokenManager {
 
             // Base64 디코딩 가능한지 확인
             const payload = JSON.parse(atob(parts[1]));
-            
+
             // 만료 시간 확인
             if (payload.exp && payload.exp * 1000 < Date.now()) {
                 apiLogger.warn('토큰이 만료됨');
@@ -182,12 +182,12 @@ class SecureTokenManager implements TokenManager {
             }
 
             const payload = JSON.parse(atob(parts[1]));
-            
+
             if (payload.exp) {
                 const expirationTime = payload.exp * 1000;
                 const bufferTime = bufferMinutes * 60 * 1000;
                 const currentTime = Date.now();
-                
+
                 // 현재 시간 + 버퍼 시간이 만료 시간보다 크면 곧 만료됨
                 return (currentTime + bufferTime) >= expirationTime;
             }
@@ -228,7 +228,7 @@ class ApiClient {
         this.client.interceptors.request.use(
             async (config) => {
                 let token = await this.tokenManager.getAccessToken();
-                
+
                 if (token) {
                     // 토큰 만료 사전 체크 (5분 전 갱신)
                     if (this.isTokenExpiringSoon(token)) {
@@ -243,7 +243,7 @@ class ApiClient {
                             apiLogger.warn('토큰 사전 갱신 실패 - 기존 토큰 사용', error as Error);
                         }
                     }
-                    
+
                     config.headers.Authorization = `Bearer ${token}`;
                 }
 
@@ -277,7 +277,7 @@ class ApiClient {
                     try {
                         apiLogger.info(`${error.response.status} 에러 발생 - 토큰 갱신 시도`);
                         const newToken = await this.handleTokenRefresh();
-                        
+
                         if (newToken) {
                             originalRequest.headers.Authorization = `Bearer ${newToken}`;
                             apiLogger.info('토큰 갱신 성공 - 원본 요청 재시도');
@@ -334,10 +334,12 @@ class ApiClient {
             apiLogger.logAuthEvent('Auto logout due to authentication failure');
             
             // 전역 인증 상태 초기화 이벤트 발생 (authStore에서 처리)
-            if (typeof window !== 'undefined' && window.dispatchEvent) {
-                window.dispatchEvent(new CustomEvent('auth:logout', { 
-                    detail: { reason: 'token_expired' }
-                }));
+            // React Native 환경에서는 동적 import를 사용하여 순환 참조 방지
+            try {
+                const { triggerAuthLogout } = await import('@/shared/stores/authStore');
+                triggerAuthLogout('token_expired');
+            } catch (importError) {
+                apiLogger.warn('Auth store import failed', importError as Error);
             }
         } catch (error) {
             apiLogger.error('Auth failure handling error', error as Error);
