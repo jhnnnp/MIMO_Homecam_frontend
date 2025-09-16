@@ -146,8 +146,8 @@ export default function AppNavigator() {
                             component={CameraHomeScreen}
                         />
                         <RootStack.Screen name="CameraSettings" component={CameraSettingsScreen} />
-                        <RootStack.Screen 
-                            name="QRCodeGenerator" 
+                        <RootStack.Screen
+                            name="QRCodeGenerator"
                             component={QRCodeGeneratorScreen}
                             options={{
                                 presentation: 'modal',

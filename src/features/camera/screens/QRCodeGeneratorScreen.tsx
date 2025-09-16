@@ -95,7 +95,7 @@ const QRCodeGeneratorScreen: React.FC<QRCodeGeneratorScreenProps> = ({ navigatio
                     version: '1.0',
                     expiresAt: now + EXPIRY_TIME
                 };
-                
+
                 setQrData(newQrData);
                 setTimeLeft(EXPIRY_TIME);
             }
@@ -113,7 +113,7 @@ const QRCodeGeneratorScreen: React.FC<QRCodeGeneratorScreenProps> = ({ navigatio
         const interval = setInterval(() => {
             const now = Date.now();
             const remaining = qrData.expiresAt - now;
-            
+
             if (remaining <= 0) {
                 setTimeLeft(0);
                 clearInterval(interval);
