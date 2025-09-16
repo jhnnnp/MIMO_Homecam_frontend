@@ -38,8 +38,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as MediaLibrary from 'expo-media-library';
-import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
 
 // Design System
 import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
@@ -289,31 +287,6 @@ const CameraHomeScreen: React.FC<CameraHomeScreenProps> = memo(({ navigation }) 
         }
     }, [isStreaming]);
 
-    const handleGeneratePinCode = useCallback(async () => {
-        try {
-            const pin = await connectionActions.generatePinCode();
-            if (pin) {
-                Alert.alert(
-                    '🔑 연결 PIN 코드',
-                    `뷰어 앱에서 아래 PIN 코드를 입력하세요:\n\n${pin}\n\n⏰ 이 코드는 10분간 유효합니다.`,
-                    [
-                        {
-                            text: '📋 복사',
-                            onPress: async () => {
-                                await Clipboard.setStringAsync(pin);
-                                if (Platform.OS === 'ios') {
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                }
-                            }
-                        },
-                        { text: '확인' }
-                    ]
-                );
-            }
-        } catch (error) {
-            Alert.alert('오류', 'PIN 코드를 생성할 수 없습니다.');
-        }
-    }, [connectionActions]);
 
     const handleGenerateQRCode = useCallback(() => {
         // QR 코드 생성 화면으로 네비게이션
@@ -518,8 +491,7 @@ const CameraHomeScreen: React.FC<CameraHomeScreenProps> = memo(({ navigation }) 
 
                 <View style={styles.secondaryControls}>
                     {[
-                        { icon: 'key', label: 'PIN 생성', onPress: handleGeneratePinCode },
-                        { icon: 'qr-code', label: 'QR 코드', onPress: handleGenerateQRCode },
+                        { icon: 'qr-code', label: '연결 코드', onPress: handleGenerateQRCode },
                         { icon: 'settings', label: '설정', onPress: () => navigation.navigate('CameraSettings') },
                         { icon: 'recording', label: '녹화 목록', onPress: () => { } },
                     ].map((control, index) => (
@@ -963,7 +935,7 @@ const styles = StyleSheet.create({
     },
     secondaryControl: {
         flex: 1,
-        minWidth: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2,
+        minWidth: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md * 2) / 3,
         backgroundColor: 'white',
         borderRadius: radius.lg,
         padding: spacing.lg,
