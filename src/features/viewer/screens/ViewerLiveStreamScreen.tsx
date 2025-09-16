@@ -37,28 +37,85 @@ import * as MediaLibrary from 'expo-media-library';
 import * as Haptics from 'expo-haptics';
 
 // Design System
-import { colors, spacing, radius, elevation, typography, enterpriseColors } from '../../design/tokens';
+import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
 
 // Navigation Types
-import { RootStackParamList } from '../../navigation/AppNavigator';
+import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
 // Services and Hooks
-import { connectionService, useConnection } from '../../services';
-import { useWebSocket } from '../../hooks/useWebSocket';
-import { useCameraStream } from '../../hooks/useCameraStream';
+import { connectionService } from '@/features/connection/services/connectionService';
+import { useConnection } from '@/features/connection/services/useConnection';
+// import { useWebSocket } from '@/features/viewer/hooks/useWebSocket'; // TODO: Implement useWebSocket hook
+import { useCameraStream } from '@/features/camera/hooks/useCameraStream';
 
 // Components
-import { LoadingState, ErrorState, Badge, Card, Button } from '../../components';
-import { WebRTCVideoPlayer, MjpegPlayer } from '../../components';
+import LoadingState from '@/shared/components/feedback/LoadingState';
+import ErrorState from '@/shared/components/feedback/ErrorState';
+import Badge from '@/shared/components/ui/Badge';
+import Card from '@/shared/components/ui/Card';
+import Button from '@/shared/components/ui/Button';
+import WebRTCVideoPlayer from '@/shared/components/media/WebRTCVideoPlayer';
+import MjpegPlayer from '@/shared/components/media/MjpegPlayer';
+import GradientBackground from '@/shared/components/layout/GradientBackground';
+import GlassCard from '@/shared/components/ui/GlassCard';
 
 // Utils
-import { logger } from '../../utils/logger';
-import { formatDuration, formatBytes } from '../../utils/formatters';
+import { logger } from '@/shared/utils/logger';
+// import { formatDuration, formatBytes } from '@/shared/utils/formatters'; // TODO: Create formatters utility
+
+// Temporary formatter functions
+const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return hours > 0 ? `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}` : `${minutes}:${secs.toString().padStart(2, '0')}`;
+};
+
+const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
 // Constants
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CONTROLS_HIDE_DELAY = 3000; // 3초 후 컨트롤 숨김
 const STATS_UPDATE_INTERVAL = 1000; // 1초마다 통계 업데이트
+
+// Enhanced Color Palette for Enterprise
+const enterpriseColors = {
+    primary: '#2563EB',
+    primaryDark: '#1D4ED8',
+    secondary: '#7C3AED',
+    accent: '#F59E0B',
+    success: '#059669',
+    warning: '#D97706',
+    error: '#DC2626',
+
+    // Neutral palette
+    gray50: '#F9FAFB',
+    gray100: '#F3F4F6',
+    gray200: '#E5E7EB',
+    gray300: '#D1D5DB',
+    gray400: '#9CA3AF',
+    gray500: '#6B7280',
+    gray600: '#4B5563',
+    gray700: '#374151',
+    gray800: '#1F2937',
+    gray900: '#111827',
+
+    // Glass morphism
+    glassBg: 'rgba(255, 255, 255, 0.1)',
+    glassStroke: 'rgba(255, 255, 255, 0.2)',
+
+    // Status colors
+    online: '#10B981',
+    offline: '#EF4444',
+    standby: '#F59E0B',
+    recording: '#DC2626',
+};
 
 // Types
 interface StreamStats {
@@ -198,7 +255,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
     useEffect(() => {
         // Auto-hide controls
         resetControlsTimeout();
-        
+
         return () => {
             if (controlsTimeoutRef.current) {
                 clearTimeout(controlsTimeoutRef.current);
@@ -231,7 +288,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
         if (controlsTimeoutRef.current) {
             clearTimeout(controlsTimeoutRef.current);
         }
-        
+
         if (!showSettings && !showStats) {
             controlsTimeoutRef.current = setTimeout(hideControls, CONTROLS_HIDE_DELAY);
         }
@@ -240,7 +297,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
     const toggleFullscreen = useCallback(async () => {
         try {
             setIsFullscreen(!isFullscreen);
-            
+
             if (Platform.OS === 'ios' && Haptics) {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }
@@ -251,14 +308,14 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
     const toggleSettings = useCallback(() => {
         const toValue = showSettings ? SCREEN_HEIGHT : 0;
-        
+
         Animated.spring(settingsSlideAnim, {
             toValue,
             useNativeDriver: true,
             tension: 100,
             friction: 8,
         }).start();
-        
+
         setShowSettings(!showSettings);
         showControlsTemporarily();
     }, [showSettings, settingsSlideAnim, showControlsTemporarily]);
@@ -280,21 +337,21 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
     const changeQuality = useCallback((quality: VideoQuality) => {
         setSelectedQuality(quality);
-        
+
         if (Platform.OS === 'ios' && Haptics) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
-        
+
         logger.info('[ViewerLiveStream] Quality changed to:', quality.label);
     }, []);
 
     const changeProtocol = useCallback((protocol: 'webrtc' | 'mjpeg') => {
         setStreamProtocol(protocol);
-        
+
         if (Platform.OS === 'ios' && Haptics) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
-        
+
         logger.info('[ViewerLiveStream] Protocol changed to:', protocol);
     }, []);
 
@@ -302,7 +359,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
         try {
             if (videoPlayerRef.current && videoPlayerRef.current.takeScreenshot) {
                 const screenshot = await videoPlayerRef.current.takeScreenshot();
-                
+
                 // Save to media library
                 const permission = await MediaLibrary.requestPermissionsAsync();
                 if (permission.granted) {
@@ -310,7 +367,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                     Alert.alert('성공', '스크린샷이 저장되었습니다.');
                 }
             }
-            
+
             if (Platform.OS === 'ios' && Haptics) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -326,28 +383,28 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                 // Stop recording
                 if (videoPlayerRef.current && videoPlayerRef.current.stopRecording) {
                     const recordingFile = await videoPlayerRef.current.stopRecording();
-                    
+
                     const permission = await MediaLibrary.requestPermissionsAsync();
                     if (permission.granted) {
                         await MediaLibrary.saveToLibraryAsync(recordingFile);
                         Alert.alert('성공', '녹화가 완료되어 저장되었습니다.');
                     }
                 }
-                
+
                 setRecordingInfo(prev => ({ ...prev, isRecording: false }));
             } else {
                 // Start recording
                 if (videoPlayerRef.current && videoPlayerRef.current.startRecording) {
                     await videoPlayerRef.current.startRecording();
                 }
-                
+
                 setRecordingInfo(prev => ({
                     ...prev,
                     isRecording: true,
                     startTime: new Date(),
                 }));
             }
-            
+
             if (Platform.OS === 'ios' && Haptics) {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
             }
@@ -433,7 +490,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                         quality={selectedQuality}
                     />
                 )}
-                
+
                 {/* Connection status overlay */}
                 {!isConnected && (
                     <View style={styles.connectionOverlay}>
@@ -441,7 +498,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                         <Text style={styles.connectionOverlayText}>연결 중...</Text>
                     </View>
                 )}
-                
+
                 {/* Recording indicator */}
                 {recordingInfo.isRecording && (
                     <View style={styles.recordingIndicator}>
@@ -484,7 +541,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                     >
                         <Ionicons name="arrow-back" size={24} color="white" />
                     </TouchableOpacity>
-                    
+
                     <View style={styles.titleContainer}>
                         <Text style={styles.streamTitle}>{cameraName}</Text>
                         <View style={styles.connectionInfo}>
@@ -531,10 +588,10 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                         onPress={toggleRecording}
                         activeOpacity={0.7}
                     >
-                        <Ionicons 
-                            name={recordingInfo.isRecording ? "stop" : "videocam"} 
-                            size={24} 
-                            color="white" 
+                        <Ionicons
+                            name={recordingInfo.isRecording ? "stop" : "videocam"}
+                            size={24}
+                            color="white"
                         />
                     </TouchableOpacity>
 
@@ -559,10 +616,10 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                         onPress={toggleFullscreen}
                         activeOpacity={0.7}
                     >
-                        <Ionicons 
-                            name={isFullscreen ? "contract" : "expand"} 
-                            size={24} 
-                            color="white" 
+                        <Ionicons
+                            name={isFullscreen ? "contract" : "expand"}
+                            size={24}
+                            color="white"
                         />
                     </TouchableOpacity>
                 </LinearGradient>
@@ -597,96 +654,98 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                 activeOpacity={1}
                 onPress={toggleSettings}
             >
-                <Animated.View
-                    style={[
-                        styles.settingsContainer,
-                        { transform: [{ translateY: settingsSlideAnim }] }
-                    ]}
-                >
-                    <View style={styles.settingsHeader}>
-                        <Text style={styles.settingsTitle}>스트림 설정</Text>
-                        <TouchableOpacity onPress={toggleSettings}>
-                            <Ionicons name="close" size={24} color={enterpriseColors.gray700} />
-                        </TouchableOpacity>
-                    </View>
+                <GradientBackground>
+                    <Animated.View
+                        style={[
+                            styles.settingsContainer,
+                            { transform: [{ translateY: settingsSlideAnim }] }
+                        ]}
+                    >
+                        <View style={styles.settingsHeader}>
+                            <Text style={styles.settingsTitle}>스트림 설정</Text>
+                            <TouchableOpacity onPress={toggleSettings}>
+                                <Ionicons name="close" size={24} color={colors.text} />
+                            </TouchableOpacity>
+                        </View>
 
-                    {/* Quality Settings */}
-                    <View style={styles.settingsSection}>
-                        <Text style={styles.settingsSectionTitle}>화질</Text>
-                        {VideoQualities.map((quality) => (
+                        {/* Quality Settings */}
+                        <View style={styles.settingsSection}>
+                            <Text style={styles.settingsSectionTitle}>화질</Text>
+                            {VideoQualities.map((quality) => (
+                                <TouchableOpacity
+                                    key={quality.id}
+                                    style={[
+                                        styles.settingsOption,
+                                        selectedQuality.id === quality.id && styles.settingsOptionSelected
+                                    ]}
+                                    onPress={() => changeQuality(quality)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={[
+                                        styles.settingsOptionText,
+                                        selectedQuality.id === quality.id && styles.settingsOptionTextSelected
+                                    ]}>
+                                        {quality.label}
+                                    </Text>
+                                    {selectedQuality.id === quality.id && (
+                                        <Ionicons name="checkmark" size={20} color={colors.primary} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        {/* Protocol Settings */}
+                        <View style={styles.settingsSection}>
+                            <Text style={styles.settingsSectionTitle}>스트림 프로토콜</Text>
                             <TouchableOpacity
-                                key={quality.id}
                                 style={[
                                     styles.settingsOption,
-                                    selectedQuality.id === quality.id && styles.settingsOptionSelected
+                                    streamProtocol === 'webrtc' && styles.settingsOptionSelected
                                 ]}
-                                onPress={() => changeQuality(quality)}
+                                onPress={() => changeProtocol('webrtc')}
                                 activeOpacity={0.7}
                             >
                                 <Text style={[
                                     styles.settingsOptionText,
-                                    selectedQuality.id === quality.id && styles.settingsOptionTextSelected
+                                    streamProtocol === 'webrtc' && styles.settingsOptionTextSelected
                                 ]}>
-                                    {quality.label}
+                                    WebRTC (저지연)
                                 </Text>
-                                {selectedQuality.id === quality.id && (
-                                    <Ionicons name="checkmark" size={20} color={enterpriseColors.primary} />
+                                {streamProtocol === 'webrtc' && (
+                                    <Ionicons name="checkmark" size={20} color={colors.primary} />
                                 )}
                             </TouchableOpacity>
-                        ))}
-                    </View>
+                            <TouchableOpacity
+                                style={[
+                                    styles.settingsOption,
+                                    streamProtocol === 'mjpeg' && styles.settingsOptionSelected
+                                ]}
+                                onPress={() => changeProtocol('mjpeg')}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[
+                                    styles.settingsOptionText,
+                                    streamProtocol === 'mjpeg' && styles.settingsOptionTextSelected
+                                ]}>
+                                    MJPEG (안정성)
+                                </Text>
+                                {streamProtocol === 'mjpeg' && (
+                                    <Ionicons name="checkmark" size={20} color={colors.primary} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
 
-                    {/* Protocol Settings */}
-                    <View style={styles.settingsSection}>
-                        <Text style={styles.settingsSectionTitle}>스트림 프로토콜</Text>
+                        {/* Disconnect Button */}
                         <TouchableOpacity
-                            style={[
-                                styles.settingsOption,
-                                streamProtocol === 'webrtc' && styles.settingsOptionSelected
-                            ]}
-                            onPress={() => changeProtocol('webrtc')}
-                            activeOpacity={0.7}
+                            style={styles.disconnectButton}
+                            onPress={handleDisconnect}
+                            activeOpacity={0.8}
                         >
-                            <Text style={[
-                                styles.settingsOptionText,
-                                streamProtocol === 'webrtc' && styles.settingsOptionTextSelected
-                            ]}>
-                                WebRTC (저지연)
-                            </Text>
-                            {streamProtocol === 'webrtc' && (
-                                <Ionicons name="checkmark" size={20} color={enterpriseColors.primary} />
-                            )}
+                            <Ionicons name="log-out-outline" size={20} color="white" />
+                            <Text style={styles.disconnectButtonText}>연결 종료</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[
-                                styles.settingsOption,
-                                streamProtocol === 'mjpeg' && styles.settingsOptionSelected
-                            ]}
-                            onPress={() => changeProtocol('mjpeg')}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[
-                                styles.settingsOptionText,
-                                streamProtocol === 'mjpeg' && styles.settingsOptionTextSelected
-                            ]}>
-                                MJPEG (안정성)
-                            </Text>
-                            {streamProtocol === 'mjpeg' && (
-                                <Ionicons name="checkmark" size={20} color={enterpriseColors.primary} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Disconnect Button */}
-                    <TouchableOpacity
-                        style={styles.disconnectButton}
-                        onPress={handleDisconnect}
-                        activeOpacity={0.8}
-                    >
-                        <Ionicons name="log-out-outline" size={20} color="white" />
-                        <Text style={styles.disconnectButtonText}>연결 종료</Text>
-                    </TouchableOpacity>
-                </Animated.View>
+                    </Animated.View>
+                </GradientBackground>
             </TouchableOpacity>
         </Modal>
     ), [
@@ -730,14 +789,14 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
     return (
         <SafeAreaView style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
-            <StatusBar 
-                barStyle="light-content" 
-                backgroundColor="black" 
+            <StatusBar
+                barStyle="light-content"
+                backgroundColor="black"
                 hidden={isFullscreen}
-                translucent 
+                translucent
             />
-            
-            <View 
+
+            <View
                 style={[styles.content, isFullscreen && styles.fullscreenContent]}
                 {...panResponder.panHandlers}
             >
@@ -946,7 +1005,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     settingsContainer: {
-        backgroundColor: 'white',
+        backgroundColor: 'transparent',
         borderTopLeftRadius: radius.xl,
         borderTopRightRadius: radius.xl,
         paddingHorizontal: spacing.lg,
@@ -959,12 +1018,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: spacing.lg,
         borderBottomWidth: 1,
-        borderBottomColor: enterpriseColors.gray200,
+        borderBottomColor: colors.divider,
     },
     settingsTitle: {
         ...typography.h4,
         fontWeight: '700',
-        color: enterpriseColors.gray900,
+        color: colors.text,
     },
     settingsSection: {
         marginTop: spacing.lg,
@@ -972,7 +1031,7 @@ const styles = StyleSheet.create({
     settingsSectionTitle: {
         ...typography.h5,
         fontWeight: '600',
-        color: enterpriseColors.gray900,
+        color: colors.text,
         marginBottom: spacing.md,
     },
     settingsOption: {

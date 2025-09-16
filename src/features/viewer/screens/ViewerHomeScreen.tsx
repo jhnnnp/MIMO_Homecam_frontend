@@ -36,24 +36,65 @@ import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 
 // Design System
-import { colors, spacing, radius, elevation, typography, enterpriseColors } from '../../design/tokens';
+import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
 
 // Navigation Types
-import { RootStackParamList } from '../../navigation/AppNavigator';
+import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
 // Services and Hooks
-import { connectionService, useConnection, ConnectionStatus, ActiveConnections } from '../../services';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import { connectionService } from '@/features/connection/services/connectionService';
+import { useConnection } from '@/features/connection/services/useConnection';
+import { ConnectionStatus, ActiveConnections } from '@/features/connection/services/connectionService';
+// // import { useWebSocket } from '@/features/viewer/hooks/useWebSocket'; // TODO: Implement useWebSocket hook
 
 // Components
-import { LoadingState, ErrorState, Badge, Card, Button } from '../../components';
+import LoadingState from '@/shared/components/feedback/LoadingState';
+import ErrorState from '@/shared/components/feedback/ErrorState';
+import Badge from '@/shared/components/ui/Badge';
+import Card from '@/shared/components/ui/Card';
+import Button from '@/shared/components/ui/Button';
+import GradientBackground from '@/shared/components/layout/GradientBackground';
+import GlassCard from '@/shared/components/ui/GlassCard';
 
 // Utils
-import { logger } from '../../utils/logger';
+import { logger } from '@/shared/utils/logger';
 
 // Constants
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const REFRESH_INTERVAL = 30000; // 30초마다 상태 갱신
+
+// Enhanced Color Palette for Enterprise
+const enterpriseColors = {
+    primary: '#2563EB',
+    primaryDark: '#1D4ED8',
+    secondary: '#7C3AED',
+    accent: '#F59E0B',
+    success: '#059669',
+    warning: '#D97706',
+    error: '#DC2626',
+
+    // Neutral palette
+    gray50: '#F9FAFB',
+    gray100: '#F3F4F6',
+    gray200: '#E5E7EB',
+    gray300: '#D1D5DB',
+    gray400: '#9CA3AF',
+    gray500: '#6B7280',
+    gray600: '#4B5563',
+    gray700: '#374151',
+    gray800: '#1F2937',
+    gray900: '#111827',
+
+    // Glass morphism
+    glassBg: 'rgba(255, 255, 255, 0.1)',
+    glassStroke: 'rgba(255, 255, 255, 0.2)',
+
+    // Status colors
+    online: '#10B981',
+    offline: '#EF4444',
+    standby: '#F59E0B',
+    recording: '#DC2626',
+};
 
 // Types
 interface ConnectionMetrics {
@@ -62,6 +103,14 @@ interface ConnectionMetrics {
     averageConnectionTime: number;
     successRate: number;
 }
+
+// Default values for safe initialization
+const DEFAULT_CONNECTION_METRICS: ConnectionMetrics = {
+    totalConnections: 0,
+    activeViewers: 0,
+    averageConnectionTime: 0,
+    successRate: 0
+};
 
 interface RecentConnection {
     id: string;
@@ -84,22 +133,22 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
     const [activeConnections, setActiveConnections] = useState<ActiveConnections | null>(null);
     const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
     const [connectionMetrics, setConnectionMetrics] = useState<ConnectionMetrics>({
-        totalConnections: 0,
-        activeViewers: 0,
-        averageConnectionTime: 0,
-        successRate: 95.2
+        ...DEFAULT_CONNECTION_METRICS,
+        successRate: 95.2 // Default success rate for demo
     });
 
     // Animation Values
     const [fadeAnim] = useState(new Animated.Value(0));
     const [slideAnim] = useState(new Animated.Value(30));
-    const [pulseAnim] = useState(new Animated.Value(1));
+    const [pulseAnim] = useState(() => new Animated.Value(1));
 
     // Refs
-    const refreshIntervalRef = useRef<NodeJS.Timeout>();
+    const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // WebSocket for real-time updates
-    const { isConnected: wsConnected, lastMessage } = useWebSocket();
+    // const { isConnected: wsConnected, lastMessage } = useWebSocket(); // TODO: Implement useWebSocket hook
+    const wsConnected = false; // Temporary placeholder
+    const lastMessage = null; // Temporary placeholder
 
     // Connection hook
     const {
@@ -172,7 +221,7 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
         try {
             logger.info('[ViewerHome] Loading dashboard data...');
 
-            // Load active connections
+            // Load active connections with error handling
             const connections = await connectionService.getActiveConnections();
             setActiveConnections(connections);
 
@@ -198,25 +247,53 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
             ];
             setRecentConnections(mockRecentConnections);
 
-            // Update metrics
-            setConnectionMetrics(prev => ({
-                ...prev,
-                totalConnections: connections.total.connections,
-                activeViewers: connections.total.viewers
-            }));
+            // Update metrics with safe property access
+            if (connections && connections.total) {
+                setConnectionMetrics(prev => ({
+                    ...prev,
+                    totalConnections: connections.total?.connections || 0,
+                    activeViewers: connections.total?.viewers || 0
+                }));
+            } else {
+                logger.warn('[ViewerHome] Invalid connections data structure:', connections);
+                // Keep previous metrics or set to default values
+                setConnectionMetrics(prev => ({
+                    ...prev,
+                    totalConnections: 0,
+                    activeViewers: 0
+                }));
+            }
 
             if (Platform.OS === 'ios' && Haptics) {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }
 
         } catch (error) {
-            logger.error('[ViewerHome] Failed to load dashboard data:', error);
+            logger.error('[ViewerHome] Failed to load dashboard data:', { error });
+
+            // Reset connections data on error
+            setActiveConnections(null);
+            setConnectionMetrics(prev => ({
+                ...prev,
+                totalConnections: 0,
+                activeViewers: 0
+            }));
         }
     }, []);
 
     const handleWebSocketMessage = useCallback((message: any) => {
         try {
+            if (!message || typeof message !== 'object') {
+                logger.warn('[ViewerHome] Invalid WebSocket message format:', message);
+                return;
+            }
+
             const { type, data } = message;
+
+            if (!type) {
+                logger.warn('[ViewerHome] WebSocket message missing type:', message);
+                return;
+            }
 
             switch (type) {
                 case 'connection_status_update':
@@ -225,36 +302,47 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
                     break;
 
                 case 'viewer_count_update':
-                    setConnectionMetrics(prev => ({
-                        ...prev,
-                        activeViewers: data.viewerCount
-                    }));
+                    if (data && typeof data.viewerCount === 'number') {
+                        setConnectionMetrics(prev => ({
+                            ...prev,
+                            activeViewers: data.viewerCount
+                        }));
+                    }
                     break;
 
                 case 'connection_expiration_warning':
-                    showExpirationWarning(data);
+                    if (data) {
+                        showExpirationWarning(data);
+                    }
                     break;
 
                 default:
+                    logger.debug('[ViewerHome] Unknown WebSocket message type:', type);
                     break;
             }
         } catch (error) {
-            logger.error('[ViewerHome] WebSocket message handling error:', error);
+            logger.error('[ViewerHome] WebSocket message handling error:', { error });
         }
-    }, []);
+    }, [loadDashboardData]);
 
     const showExpirationWarning = useCallback((data: any) => {
+        if (!data || typeof data.timeLeft !== 'number') {
+            logger.warn('[ViewerHome] Invalid expiration warning data:', data);
+            return;
+        }
+
         Alert.alert(
             '연결 만료 경고',
             `연결이 ${data.timeLeft}초 후 만료됩니다. 갱신하시겠습니까?`,
             [
                 { text: '취소', style: 'cancel' },
-                { 
-                    text: '갱신', 
+                {
+                    text: '갱신',
                     onPress: () => {
                         // Handle connection refresh
                         if (connectionData) {
                             // Auto-refresh logic would go here
+                            logger.info('[ViewerHome] Connection refresh requested');
                         }
                     }
                 }
@@ -280,12 +368,14 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
         if (Platform.OS === 'ios' && Haptics) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
-        // Navigate to QR scanner (would need to be implemented)
-        Alert.alert('QR 연결', 'QR 코드 스캔 기능을 구현해주세요.');
-    }, []);
+        // Navigate to QR scanner
+        navigation.navigate('ViewerQRScan');
+    }, [navigation]);
 
     const handleViewConnection = useCallback((connectionId: string) => {
-        navigation.navigate('ViewerLiveStream', { connectionId });
+        // TODO: Add ViewerLiveStream to navigation types
+        // navigation.navigate('ViewerLiveStream', { connectionId });
+        logger.info('[ViewerHome] Navigate to live stream:', { connectionId });
     }, [navigation]);
 
     const handleShareConnection = useCallback(async (connection: RecentConnection) => {
@@ -295,7 +385,7 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
                 title: '카메라 연결 공유'
             });
         } catch (error) {
-            logger.error('[ViewerHome] Share failed:', error);
+            logger.error('[ViewerHome] Share failed:', { error });
         }
     }, []);
 
@@ -303,7 +393,7 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
     const formatDuration = useCallback((seconds: number): string => {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
-        
+
         if (hours > 0) {
             return `${hours}시간 ${minutes}분`;
         }
@@ -324,7 +414,7 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
             >
                 <Ionicons name="arrow-back" size={24} color={enterpriseColors.gray700} />
             </TouchableOpacity>
-            
+
             <View style={styles.headerContent}>
                 <Text style={styles.headerTitle}>뷰어 대시보드</Text>
                 <View style={styles.connectionStatus}>
@@ -344,9 +434,9 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
                 disabled={isRefreshing}
                 activeOpacity={0.7}
             >
-                <Ionicons 
-                    name={isRefreshing ? "refresh" : "refresh-outline"} 
-                    size={24} 
+                <Ionicons
+                    name={isRefreshing ? "refresh" : "refresh-outline"}
+                    size={24}
                     color={enterpriseColors.primary}
                     style={isRefreshing ? styles.spinning : undefined}
                 />
@@ -358,22 +448,22 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
         <View style={styles.metricsContainer}>
             <Text style={styles.sectionTitle}>연결 현황</Text>
             <View style={styles.metricsGrid}>
-                <Card style={styles.metricCard}>
+                <GlassCard variant="morphism" style={styles.metricCard}>
                     <Text style={styles.metricValue}>{connectionMetrics.totalConnections}</Text>
                     <Text style={styles.metricLabel}>총 연결</Text>
-                </Card>
-                <Card style={styles.metricCard}>
+                </GlassCard>
+                <GlassCard variant="morphism" style={styles.metricCard}>
                     <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                        <Text style={[styles.metricValue, { color: enterpriseColors.success }]}>
+                        <Text style={[styles.metricValue, { color: colors.success }]}>
                             {connectionMetrics.activeViewers}
                         </Text>
                     </Animated.View>
                     <Text style={styles.metricLabel}>활성 뷰어</Text>
-                </Card>
-                <Card style={styles.metricCard}>
+                </GlassCard>
+                <GlassCard variant="morphism" style={styles.metricCard}>
                     <Text style={styles.metricValue}>{connectionMetrics.successRate}%</Text>
                     <Text style={styles.metricLabel}>성공률</Text>
-                </Card>
+                </GlassCard>
             </View>
         </View>
     ), [connectionMetrics, pulseAnim]);
@@ -382,25 +472,39 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
         <View style={styles.quickActionsContainer}>
             <Text style={styles.sectionTitle}>빠른 연결</Text>
             <View style={styles.actionButtons}>
-                <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: enterpriseColors.primary }]}
+                <GlassCard
+                    variant="morphism"
+                    pressable={true}
                     onPress={handleConnectWithPin}
-                    activeOpacity={0.8}
+                    style={styles.actionButton}
                 >
-                    <Ionicons name="keypad" size={24} color="white" />
-                    <Text style={styles.actionButtonText}>PIN 코드</Text>
-                    <Text style={styles.actionButtonSubtext}>6자리 숫자 입력</Text>
-                </TouchableOpacity>
+                    <View style={styles.actionButtonContent}>
+                        <View style={[styles.actionIconContainer, { backgroundColor: colors.primary + '20' }]}>
+                            <Ionicons name="keypad" size={24} color={colors.primary} />
+                        </View>
+                        <View style={styles.actionTextContainer}>
+                            <Text style={styles.actionButtonText}>PIN 코드</Text>
+                            <Text style={styles.actionButtonSubtext}>6자리 숫자 입력</Text>
+                        </View>
+                    </View>
+                </GlassCard>
 
-                <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: enterpriseColors.secondary }]}
+                <GlassCard
+                    variant="morphism"
+                    pressable={true}
                     onPress={handleConnectWithQR}
-                    activeOpacity={0.8}
+                    style={styles.actionButton}
                 >
-                    <Ionicons name="qr-code" size={24} color="white" />
-                    <Text style={styles.actionButtonText}>QR 코드</Text>
-                    <Text style={styles.actionButtonSubtext}>카메라로 스캔</Text>
-                </TouchableOpacity>
+                    <View style={styles.actionButtonContent}>
+                        <View style={[styles.actionIconContainer, { backgroundColor: colors.accent + '20' }]}>
+                            <Ionicons name="qr-code" size={24} color={colors.accent} />
+                        </View>
+                        <View style={styles.actionTextContainer}>
+                            <Text style={styles.actionButtonText}>QR 코드</Text>
+                            <Text style={styles.actionButtonSubtext}>카메라로 스캔</Text>
+                        </View>
+                    </View>
+                </GlassCard>
             </View>
         </View>
     ), [handleConnectWithPin, handleConnectWithQR]);
@@ -409,21 +513,21 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
         <View style={styles.recentConnectionsContainer}>
             <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>최근 연결</Text>
-                <TouchableOpacity onPress={() => {}}>
+                <TouchableOpacity onPress={() => { }}>
                     <Text style={styles.seeAllText}>전체보기</Text>
                 </TouchableOpacity>
             </View>
 
             {recentConnections.length === 0 ? (
-                <Card style={styles.emptyCard}>
-                    <Ionicons name="videocam-off-outline" size={48} color={enterpriseColors.gray400} />
+                <GlassCard variant="morphism" style={styles.emptyCard}>
+                    <Ionicons name="videocam-off-outline" size={48} color={colors.textSecondary} />
                     <Text style={styles.emptyText}>최근 연결이 없습니다</Text>
                     <Text style={styles.emptySubtext}>위의 빠른 연결을 사용해보세요</Text>
-                </Card>
+                </GlassCard>
             ) : (
                 <View style={styles.connectionsList}>
                     {recentConnections.map((connection) => (
-                        <Card key={connection.id} style={styles.connectionCard}>
+                        <GlassCard key={connection.id} variant="morphism" style={styles.connectionCard}>
                             <TouchableOpacity
                                 style={styles.connectionCardContent}
                                 onPress={() => handleViewConnection(connection.id)}
@@ -433,31 +537,32 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
                                     <View style={styles.connectionHeader}>
                                         <Text style={styles.connectionName}>{connection.cameraName}</Text>
                                         <Badge
-                                            text={connection.connectionType.toUpperCase()}
-                                            color={getConnectionTypeColor(connection.connectionType)}
+                                            label={connection.connectionType.toUpperCase()}
+                                            variant="status"
+                                            type={connection.connectionType === 'pin' ? 'warning' : 'success'}
                                             size="small"
                                         />
                                     </View>
-                                    
+
                                     <View style={styles.connectionDetails}>
                                         <View style={styles.connectionMeta}>
-                                            <Ionicons 
-                                                name="time-outline" 
-                                                size={16} 
-                                                color={enterpriseColors.gray500} 
+                                            <Ionicons
+                                                name="time-outline"
+                                                size={16}
+                                                color={colors.textSecondary}
                                             />
                                             <Text style={styles.connectionMetaText}>
                                                 {formatDuration(connection.duration)}
                                             </Text>
                                         </View>
-                                        
+
                                         <View style={styles.connectionStatus}>
                                             <View style={[
                                                 styles.statusDot,
-                                                { 
-                                                    backgroundColor: connection.status === 'active' 
-                                                        ? enterpriseColors.success 
-                                                        : enterpriseColors.gray400 
+                                                {
+                                                    backgroundColor: connection.status === 'active'
+                                                        ? colors.success
+                                                        : colors.textSecondary
                                                 }
                                             ]} />
                                             <Text style={styles.connectionStatusText}>
@@ -472,10 +577,10 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
                                     onPress={() => handleShareConnection(connection)}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 >
-                                    <Ionicons name="share-outline" size={20} color={enterpriseColors.gray600} />
+                                    <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             </TouchableOpacity>
-                        </Card>
+                        </GlassCard>
                     ))}
                 </View>
             )}
@@ -487,45 +592,45 @@ const ViewerHomeScreen = memo(({ navigation }: ViewerHomeScreenProps) => {
             <ErrorState
                 message={connectionError}
                 onRetry={clearError}
-                onBack={() => navigation.goBack()}
             />
         );
     }
 
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-            
-            {renderHeader()}
+        <GradientBackground>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+            <SafeAreaView style={styles.container}>
+                {renderHeader()}
 
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={isRefreshing}
-                        onRefresh={handleRefresh}
-                        tintColor={enterpriseColors.primary}
-                        colors={[enterpriseColors.primary]}
-                    />
-                }
-            >
-                <Animated.View
-                    style={[
-                        styles.content,
-                        {
-                            opacity: fadeAnim,
-                            transform: [{ translateY: slideAnim }],
-                        },
-                    ]}
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={isRefreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
                 >
-                    {renderConnectionMetrics()}
-                    {renderQuickActions()}
-                    {renderRecentConnections()}
-                </Animated.View>
-            </ScrollView>
-        </SafeAreaView>
+                    <Animated.View
+                        style={[
+                            styles.content,
+                            {
+                                opacity: fadeAnim,
+                                transform: [{ translateY: slideAnim }],
+                            },
+                        ]}
+                    >
+                        {renderConnectionMetrics()}
+                        {renderQuickActions()}
+                        {renderRecentConnections()}
+                    </Animated.View>
+                </ScrollView>
+            </SafeAreaView>
+        </GradientBackground>
     );
 });
 
@@ -533,17 +638,17 @@ ViewerHomeScreen.displayName = 'ViewerHomeScreen';
 
 export default ViewerHomeScreen;
 
-// Enhanced Enterprise-grade Styles
+// Enhanced MIMO-branded Styles
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: enterpriseColors.gray50,
+        backgroundColor: 'transparent',
     },
     scrollView: {
         flex: 1,
     },
     scrollContent: {
-        paddingBottom: spacing.xxl,
+        paddingBottom: spacing['3xl'],
     },
     content: {
         flex: 1,
@@ -555,7 +660,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
-        backgroundColor: 'white',
+        backgroundColor: 'transparent',
         borderBottomWidth: 1,
         borderBottomColor: enterpriseColors.gray200,
         elevation: 2,
@@ -567,7 +672,7 @@ const styles = StyleSheet.create({
     backButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
+        backgroundColor: colors.surfaceAlt,
     },
     headerContent: {
         flex: 1,
@@ -576,7 +681,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         ...typography.h3,
         fontWeight: '700',
-        color: enterpriseColors.gray900,
+        color: colors.text,
     },
     connectionStatus: {
         flexDirection: 'row',
@@ -591,13 +696,13 @@ const styles = StyleSheet.create({
     },
     statusText: {
         ...typography.caption,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         fontWeight: '500',
     },
     refreshButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
+        backgroundColor: colors.surfaceAlt,
     },
     spinning: {
         transform: [{ rotate: '360deg' }],
@@ -605,9 +710,9 @@ const styles = StyleSheet.create({
 
     // Sections
     sectionTitle: {
-        ...typography.h4,
+        ...typography.h3,
         fontWeight: '700',
-        color: enterpriseColors.gray900,
+        color: colors.text,
         marginBottom: spacing.md,
     },
     sectionHeader: {
@@ -617,8 +722,8 @@ const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     seeAllText: {
-        ...typography.button,
-        color: enterpriseColors.primary,
+        ...typography.label,
+        color: colors.primary,
         fontWeight: '600',
     },
 
@@ -636,17 +741,17 @@ const styles = StyleSheet.create({
         marginHorizontal: spacing.xs,
         padding: spacing.lg,
         alignItems: 'center',
-        backgroundColor: 'white',
+        backgroundColor: 'transparent',
     },
     metricValue: {
         ...typography.h2,
         fontWeight: '800',
-        color: enterpriseColors.primary,
+        color: colors.primary,
         marginBottom: spacing.xs,
     },
     metricLabel: {
         ...typography.caption,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         fontWeight: '500',
         textAlign: 'center',
     },
@@ -663,24 +768,32 @@ const styles = StyleSheet.create({
     actionButton: {
         flex: 1,
         marginHorizontal: spacing.xs,
-        padding: spacing.lg,
-        borderRadius: radius.lg,
+    },
+    actionButtonContent: {
         alignItems: 'center',
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
+        justifyContent: 'center',
+        minHeight: 120,
+    },
+    actionIconContainer: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: spacing.md,
+    },
+    actionTextContainer: {
+        alignItems: 'center',
     },
     actionButtonText: {
-        ...typography.h5,
-        color: 'white',
+        ...typography.h3,
+        color: colors.text,
         fontWeight: '700',
-        marginTop: spacing.sm,
+        textAlign: 'center',
     },
     actionButtonSubtext: {
         ...typography.caption,
-        color: 'rgba(255, 255, 255, 0.8)',
+        color: colors.textSecondary,
         marginTop: spacing.xs,
         textAlign: 'center',
     },
@@ -694,7 +807,7 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     connectionCard: {
-        backgroundColor: 'white',
+        backgroundColor: 'transparent',
         padding: 0,
     },
     connectionCardContent: {
@@ -712,9 +825,9 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     connectionName: {
-        ...typography.h5,
+        ...typography.bodyLg,
         fontWeight: '600',
-        color: enterpriseColors.gray900,
+        color: colors.text,
     },
     connectionDetails: {
         flexDirection: 'row',
@@ -727,29 +840,29 @@ const styles = StyleSheet.create({
     },
     connectionMetaText: {
         ...typography.caption,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         marginLeft: spacing.xs,
     },
     connectionStatusText: {
         ...typography.caption,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         marginLeft: spacing.xs,
     },
     shareButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
+        backgroundColor: colors.surfaceAlt,
         marginLeft: spacing.md,
     },
 
     // Empty States
     emptyCard: {
-        backgroundColor: 'white',
+        backgroundColor: 'transparent',
         padding: spacing.xl,
         alignItems: 'center',
     },
     emptyText: {
-        ...typography.h5,
+        ...typography.bodyLg,
         color: enterpriseColors.gray700,
         marginTop: spacing.md,
         textAlign: 'center',

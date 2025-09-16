@@ -35,21 +35,83 @@ import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 // Design System
-import { colors, spacing, radius, elevation, typography, enterpriseColors } from '../../design/tokens';
+import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
 
 // Navigation Types
-import { RootStackParamList } from '../../navigation/AppNavigator';
+import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
 // Services and Hooks
-import { connectionService, useConnection } from '../../services';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import { connectionService } from '@/features/connection/services/connectionService';
+import { useConnection } from '../../connection/services/useConnection';
+// import { useWebSocket } from '@/features/viewer/hooks/useWebSocket'; // TODO: Implement useWebSocket hook
 
 // Components
-import { LoadingState, ErrorState, Card, Button, TextField } from '../../components';
+import LoadingState from '@/shared/components/feedback/LoadingState';
+import ErrorState from '@/shared/components/feedback/ErrorState';
+import Card from '../../../shared/components/ui/Card';
+import Button from '../../../shared/components/ui/Button';
+import TextField from '../../../shared/components/ui/TextField';
+import GradientBackground from '@/shared/components/layout/GradientBackground';
+import GlassCard from '@/shared/components/ui/GlassCard';
+import EnhancedTextField from '@/shared/components/ui/EnhancedTextField';
 
 // Utils
-import { logger } from '../../utils/logger';
-import { StorageService } from '../../utils/storage';
+import { logger } from '../../../shared/utils/logger';
+// import { StorageService } from '../../../shared/utils/storage'; // TODO: Create StorageService utility
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Enhanced Color Palette for Enterprise
+const enterpriseColors = {
+    primary: '#2563EB',
+    primaryDark: '#1D4ED8',
+    secondary: '#7C3AED',
+    accent: '#F59E0B',
+    success: '#059669',
+    warning: '#D97706',
+    error: '#DC2626',
+
+    // Neutral palette
+    gray50: '#F9FAFB',
+    gray100: '#F3F4F6',
+    gray200: '#E5E7EB',
+    gray300: '#D1D5DB',
+    gray400: '#9CA3AF',
+    gray500: '#6B7280',
+    gray600: '#4B5563',
+    gray700: '#374151',
+    gray800: '#1F2937',
+    gray900: '#111827',
+
+    // Glass morphism
+    glassBg: 'rgba(255, 255, 255, 0.1)',
+    glassStroke: 'rgba(255, 255, 255, 0.2)',
+
+    // Status colors
+    online: '#10B981',
+    offline: '#EF4444',
+    standby: '#F59E0B',
+    recording: '#DC2626',
+};
+
+// Temporary StorageService implementation
+const StorageService = {
+    async get(key: string, defaultValue: any = null) {
+        try {
+            const value = await AsyncStorage.getItem(key);
+            return value ? JSON.parse(value) : defaultValue;
+        } catch (error) {
+            logger.error('StorageService get error:', error);
+            return defaultValue;
+        }
+    },
+    async set(key: string, value: any) {
+        try {
+            await AsyncStorage.setItem(key, JSON.stringify(value));
+        } catch (error) {
+            logger.error('StorageService set error:', error);
+        }
+    }
+};
 
 // Constants
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -93,7 +155,7 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
         showError: false,
         errorMessage: ''
     });
-    
+
     const [connectionMode, setConnectionMode] = useState<'pin' | 'qr'>('pin');
     const [isConnecting, setIsConnecting] = useState(false);
     const [connectionAttempts, setConnectionAttempts] = useState<ConnectionAttempt[]>([]);
@@ -129,7 +191,7 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
 
         // Check biometric availability
         checkBiometricAvailability();
-        
+
         // Load favorites and history
         loadConnectionHistory();
         loadFavoriteConnections();
@@ -145,8 +207,8 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
     useEffect(() => {
         if (pinInput.value.length === PIN_LENGTH) {
             // Animate all boxes when PIN is complete
-            Animated.stagger(50, 
-                pinBoxAnims.map(anim => 
+            Animated.stagger(50,
+                pinBoxAnims.map(anim =>
                     Animated.sequence([
                         Animated.timing(anim, {
                             toValue: 1.2,
@@ -266,7 +328,7 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
     // Connection handling
     const handleConnect = useCallback(async (pinCode?: string) => {
         const pin = pinCode || pinInput.value;
-        
+
         if (!pin || pin.length !== PIN_LENGTH) {
             showPinError('PIN 코드는 6자리 숫자여야 합니다.');
             return;
@@ -409,15 +471,15 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                 onPress={() => navigation.goBack()}
                 activeOpacity={0.7}
             >
-                <Ionicons name="arrow-back" size={24} color={enterpriseColors.gray700} />
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-            
+
             <View style={styles.headerContent}>
                 <Text style={styles.headerTitle}>카메라 연결</Text>
                 <View style={styles.connectionStatus}>
                     <View style={[
                         styles.statusDot,
-                        { backgroundColor: wsConnected ? enterpriseColors.success : enterpriseColors.error }
+                        { backgroundColor: wsConnected ? colors.success : colors.error }
                     ]} />
                     <Text style={styles.statusText}>
                         {wsConnected ? '서버 연결됨' : '오프라인'}
@@ -430,17 +492,17 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                 onPress={() => setConnectionMode(connectionMode === 'pin' ? 'qr' : 'pin')}
                 activeOpacity={0.7}
             >
-                <Ionicons 
-                    name={connectionMode === 'pin' ? 'qr-code-outline' : 'keypad-outline'} 
-                    size={24} 
-                    color={enterpriseColors.primary} 
+                <Ionicons
+                    name={connectionMode === 'pin' ? 'qr-code-outline' : 'keypad-outline'}
+                    size={24}
+                    color={colors.primary}
                 />
             </TouchableOpacity>
         </View>
     ), [navigation, wsConnected, connectionMode]);
 
     const renderConnectionModeSelector = useCallback(() => (
-        <View style={styles.modeSelector}>
+        <GlassCard variant="morphism" style={styles.modeSelector}>
             <TouchableOpacity
                 style={[
                     styles.modeOption,
@@ -449,10 +511,10 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                 onPress={() => setConnectionMode('pin')}
                 activeOpacity={0.8}
             >
-                <Ionicons 
-                    name="keypad" 
-                    size={24} 
-                    color={connectionMode === 'pin' ? 'white' : enterpriseColors.gray600} 
+                <Ionicons
+                    name="keypad"
+                    size={24}
+                    color={connectionMode === 'pin' ? colors.textOnPrimary : colors.textSecondary}
                 />
                 <Text style={[
                     styles.modeOptionText,
@@ -470,10 +532,10 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                 onPress={() => setConnectionMode('qr')}
                 activeOpacity={0.8}
             >
-                <Ionicons 
-                    name="qr-code" 
-                    size={24} 
-                    color={connectionMode === 'qr' ? 'white' : enterpriseColors.gray600} 
+                <Ionicons
+                    name="qr-code"
+                    size={24}
+                    color={connectionMode === 'qr' ? colors.textOnPrimary : colors.textSecondary}
                 />
                 <Text style={[
                     styles.modeOptionText,
@@ -482,53 +544,55 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                     QR 코드
                 </Text>
             </TouchableOpacity>
-        </View>
+        </GlassCard>
     ), [connectionMode]);
 
     const renderPinInput = useCallback(() => (
-        <Animated.View 
-            style={[
-                styles.pinInputContainer,
-                { transform: [{ translateX: shakeAnim }] }
-            ]}
-        >
-            <Text style={styles.pinInputLabel}>PIN 코드 입력</Text>
-            <Text style={styles.pinInputSubtitle}>카메라에서 생성된 6자리 숫자를 입력하세요</Text>
-            
-            <View style={styles.pinDisplay}>
-                {Array.from({ length: PIN_LENGTH }, (_, index) => (
-                    <Animated.View
-                        key={index}
-                        style={[
-                            styles.pinBox,
-                            {
-                                backgroundColor: index < pinInput.value.length 
-                                    ? enterpriseColors.primary 
-                                    : 'white',
-                                borderColor: pinInput.showError 
-                                    ? enterpriseColors.error 
-                                    : enterpriseColors.gray300,
-                                transform: [{ scale: pinBoxAnims[index] }]
-                            }
-                        ]}
-                    >
-                        <Text style={[
-                            styles.pinBoxText,
-                            { color: index < pinInput.value.length ? 'white' : enterpriseColors.gray400 }
-                        ]}>
-                            {index < pinInput.value.length ? '●' : '○'}
-                        </Text>
-                    </Animated.View>
-                ))}
-            </View>
+        <GlassCard variant="morphism" style={styles.pinInputWrapper}>
+            <Animated.View
+                style={[
+                    styles.pinInputContainer,
+                    { transform: [{ translateX: shakeAnim }] }
+                ]}
+            >
+                <Text style={styles.pinInputLabel}>PIN 코드 입력</Text>
+                <Text style={styles.pinInputSubtitle}>카메라에서 생성된 6자리 숫자를 입력하세요</Text>
 
-            {pinInput.showError && (
-                <Animated.View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle" size={16} color={enterpriseColors.error} />
-                    <Text style={styles.errorText}>{pinInput.errorMessage}</Text>
-                </Animated.View>
-            )}
-        </Animated.View>
+                <View style={styles.pinDisplay}>
+                    {Array.from({ length: PIN_LENGTH }, (_, index) => (
+                        <Animated.View
+                            key={index}
+                            style={[
+                                styles.pinBox,
+                                {
+                                    backgroundColor: index < pinInput.value.length
+                                        ? colors.primary
+                                        : colors.surface,
+                                    borderColor: pinInput.showError
+                                        ? colors.error
+                                        : colors.divider,
+                                    transform: [{ scale: pinBoxAnims[index] }]
+                                }
+                            ]}
+                        >
+                            <Text style={[
+                                styles.pinBoxText,
+                                { color: index < pinInput.value.length ? colors.textOnPrimary : colors.textSecondary }
+                            ]}>
+                                {index < pinInput.value.length ? '●' : '○'}
+                            </Text>
+                        </Animated.View>
+                    ))}
+                </View>
+
+                {pinInput.showError && (
+                    <Animated.View style={styles.errorContainer}>
+                        <Ionicons name="alert-circle" size={16} color={colors.error} />
+                        <Text style={styles.errorText}>{pinInput.errorMessage}</Text>
+                    </Animated.View>
+                )}
+            </Animated.View>
+        </GlassCard>
     ), [pinInput, shakeAnim, pinBoxAnims]);
 
     const renderNumericKeypad = useCallback(() => (
@@ -545,7 +609,7 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                         <Text style={styles.keypadButtonText}>{i + 1}</Text>
                     </TouchableOpacity>
                 ))}
-                
+
                 {/* Biometric button */}
                 {biometricAvailable && (
                     <TouchableOpacity
@@ -554,10 +618,10 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                         activeOpacity={0.7}
                         disabled={isConnecting}
                     >
-                        <Ionicons name="finger-print" size={24} color={enterpriseColors.primary} />
+                        <Ionicons name="finger-print" size={24} color={colors.primary} />
                     </TouchableOpacity>
                 )}
-                
+
                 {/* Zero button */}
                 <TouchableOpacity
                     style={styles.keypadButton}
@@ -567,7 +631,7 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                 >
                     <Text style={styles.keypadButtonText}>0</Text>
                 </TouchableOpacity>
-                
+
                 {/* Delete button */}
                 <TouchableOpacity
                     style={styles.keypadButton}
@@ -590,10 +654,10 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                     activeOpacity={0.7}
                 >
                     <Text style={styles.favoritesTitle}>즐겨찾기 연결</Text>
-                    <Ionicons 
-                        name={showFavorites ? 'chevron-up' : 'chevron-down'} 
-                        size={20} 
-                        color={enterpriseColors.gray600} 
+                    <Ionicons
+                        name={showFavorites ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={enterpriseColors.gray600}
                     />
                 </TouchableOpacity>
 
@@ -613,7 +677,7 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                                         마지막 연결: {favorite.lastConnected.toLocaleDateString()}
                                     </Text>
                                 </View>
-                                <Ionicons name="chevron-forward" size={20} color={enterpriseColors.gray400} />
+                                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -634,7 +698,7 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
 
     if (isConnecting) {
         return (
-            <LoadingState 
+            <LoadingState
                 message="카메라에 연결 중..."
                 onCancel={() => {
                     setIsConnecting(false);
@@ -647,47 +711,48 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-            
-            {renderHeader()}
+        <GradientBackground>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+            <SafeAreaView style={styles.container}>
+                {renderHeader()}
 
-            <KeyboardAvoidingView 
-                style={styles.content} 
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-                <ScrollView 
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
+                <KeyboardAvoidingView
+                    style={styles.content}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 >
-                    <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
-                        {renderConnectionModeSelector()}
-                        
-                        {connectionMode === 'pin' ? (
-                            <>
-                                {renderPinInput()}
-                                {renderNumericKeypad()}
-                                {renderFavoriteConnections()}
-                            </>
-                        ) : (
-                            <View style={styles.qrContainer}>
-                                <Ionicons name="qr-code-outline" size={120} color={enterpriseColors.gray400} />
-                                <Text style={styles.qrTitle}>QR 코드 스캔</Text>
-                                <Text style={styles.qrSubtitle}>카메라에 표시된 QR 코드를 스캔하세요</Text>
-                                <Button
-                                    title="QR 스캐너 열기"
-                                    onPress={() => {
-                                        Alert.alert('QR 스캐너', 'QR 스캐너 기능을 구현해주세요.');
-                                    }}
-                                    style={styles.qrButton}
-                                />
-                            </View>
-                        )}
-                    </Animated.View>
-                </ScrollView>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
+                    <ScrollView
+                        style={styles.scrollView}
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
+                            {renderConnectionModeSelector()}
+
+                            {connectionMode === 'pin' ? (
+                                <>
+                                    {renderPinInput()}
+                                    {renderNumericKeypad()}
+                                    {renderFavoriteConnections()}
+                                </>
+                            ) : (
+                                <GlassCard variant="morphism" style={styles.qrContainer}>
+                                    <Ionicons name="qr-code-outline" size={120} color={colors.textSecondary} />
+                                    <Text style={styles.qrTitle}>QR 코드 스캔</Text>
+                                    <Text style={styles.qrSubtitle}>카메라에 표시된 QR 코드를 스캔하세요</Text>
+                                    <Button
+                                        title="QR 스캐너 열기"
+                                        onPress={() => {
+                                            Alert.alert('QR 스캐너', 'QR 스캐너 기능을 구현해주세요.');
+                                        }}
+                                        style={styles.qrButton}
+                                    />
+                                </GlassCard>
+                            )}
+                        </Animated.View>
+                    </ScrollView>
+                </KeyboardAvoidingView>
+            </SafeAreaView>
+        </GradientBackground>
     );
 });
 
@@ -695,11 +760,11 @@ ViewerPinCodeScreen.displayName = 'ViewerPinCodeScreen';
 
 export default ViewerPinCodeScreen;
 
-// Enhanced Enterprise-grade Styles
+// Enhanced MIMO-branded Styles
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: enterpriseColors.gray50,
+        backgroundColor: 'transparent',
     },
     content: {
         flex: 1,
@@ -721,9 +786,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
-        backgroundColor: 'white',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: enterpriseColors.gray200,
+        borderBottomColor: colors.divider,
         elevation: 2,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -733,7 +798,7 @@ const styles = StyleSheet.create({
     backButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
+        backgroundColor: colors.surfaceAlt,
     },
     headerContent: {
         flex: 1,
@@ -742,7 +807,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         ...typography.h3,
         fontWeight: '700',
-        color: enterpriseColors.gray900,
+        color: colors.text,
     },
     connectionStatus: {
         flexDirection: 'row',
@@ -757,27 +822,21 @@ const styles = StyleSheet.create({
     },
     statusText: {
         ...typography.caption,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         fontWeight: '500',
     },
     modeButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
+        backgroundColor: colors.surfaceAlt,
     },
 
     // Mode Selector
     modeSelector: {
         flexDirection: 'row',
-        backgroundColor: 'white',
         borderRadius: radius.lg,
         padding: spacing.xs,
         marginVertical: spacing.xl,
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
     },
     modeOption: {
         flex: 1,
@@ -789,32 +848,34 @@ const styles = StyleSheet.create({
         borderRadius: radius.md,
     },
     modeOptionActive: {
-        backgroundColor: enterpriseColors.primary,
+        backgroundColor: colors.primary,
     },
     modeOptionText: {
         ...typography.button,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         marginLeft: spacing.sm,
         fontWeight: '600',
     },
     modeOptionTextActive: {
-        color: 'white',
+        color: colors.textOnPrimary,
     },
 
     // PIN Input
+    pinInputWrapper: {
+        marginBottom: spacing.xl,
+    },
     pinInputContainer: {
         alignItems: 'center',
-        marginBottom: spacing.xl,
     },
     pinInputLabel: {
         ...typography.h4,
         fontWeight: '700',
-        color: enterpriseColors.gray900,
+        color: colors.text,
         marginBottom: spacing.sm,
     },
     pinInputSubtitle: {
         ...typography.body,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: spacing.xl,
         lineHeight: 22,
@@ -845,7 +906,7 @@ const styles = StyleSheet.create({
     errorContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: `${enterpriseColors.error}15`,
+        backgroundColor: `${colors.error}15`,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
         borderRadius: radius.md,
@@ -853,7 +914,7 @@ const styles = StyleSheet.create({
     },
     errorText: {
         ...typography.caption,
-        color: enterpriseColors.error,
+        color: colors.error,
         marginLeft: spacing.xs,
         fontWeight: '500',
     },
@@ -872,7 +933,7 @@ const styles = StyleSheet.create({
         height: 70,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'white',
+        backgroundColor: colors.surface,
         borderRadius: radius.lg,
         margin: spacing.sm,
         elevation: 2,
@@ -884,13 +945,13 @@ const styles = StyleSheet.create({
     keypadButtonText: {
         fontSize: 24,
         fontWeight: '600',
-        color: enterpriseColors.gray900,
+        color: colors.text,
     },
 
     // Favorites
     favoritesContainer: {
         marginTop: spacing.xl,
-        backgroundColor: 'white',
+        backgroundColor: colors.surface,
         borderRadius: radius.lg,
         padding: spacing.lg,
         elevation: 1,
@@ -907,7 +968,7 @@ const styles = StyleSheet.create({
     favoritesTitle: {
         ...typography.h5,
         fontWeight: '600',
-        color: enterpriseColors.gray900,
+        color: colors.text,
     },
     favoritesList: {
         marginTop: spacing.md,
@@ -917,7 +978,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: enterpriseColors.gray200,
+        borderBottomColor: colors.divider,
     },
     favoriteInfo: {
         flex: 1,
@@ -925,12 +986,12 @@ const styles = StyleSheet.create({
     favoriteName: {
         ...typography.button,
         fontWeight: '600',
-        color: enterpriseColors.gray900,
+        color: colors.text,
         marginBottom: spacing.xs,
     },
     favoritePin: {
         ...typography.caption,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         marginBottom: spacing.xs,
     },
     favoriteLastConnected: {
@@ -948,13 +1009,13 @@ const styles = StyleSheet.create({
     qrTitle: {
         ...typography.h3,
         fontWeight: '700',
-        color: enterpriseColors.gray900,
+        color: colors.text,
         marginTop: spacing.xl,
         marginBottom: spacing.sm,
     },
     qrSubtitle: {
         ...typography.body,
-        color: enterpriseColors.gray600,
+        color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: spacing.xl,
         lineHeight: 22,
