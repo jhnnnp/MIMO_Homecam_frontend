@@ -50,7 +50,9 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "expo-dev-client"
+      "expo-dev-client",
+      "expo-font",
+      "expo-secure-store"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

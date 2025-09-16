@@ -79,30 +79,32 @@ MIMO Camera는 React Native와 Expo를 기반으로 한 실시간 카메라 스�
 
 ## 🏗️ Architecture
 
+Feature-based 아키텍처를 채택하여 도메인별로 코드를 구성합니다. 자세한 내용은 [`FRONTEND_ARCHITECTURE.md`](FRONTEND_ARCHITECTURE.md) 문서를 참고하세요.
+
 ```
 src/
-├── config/                 # 설정 관리
-│   └── index.ts           # 통합 설정
-├── utils/                 # 유틸리티
-│   ├── logger.ts          # 중앙 로깅 시스템
-│   └── errorHandler.ts    # 에러 처리
-├── services/              # 서비스 레이어
-│   ├── api.ts            # API 클라이언트
-│   ├── authService.ts    # 인증 서비스
-│   ├── cameraService.ts  # 카메라 서비스
-│   ├── streamingService.ts # 스트리밍 서비스
-│   ├── webrtcService.ts  # WebRTC 서비스
-│   ├── eventService.ts   # 이벤트 서비스
-│   ├── notificationService.ts # 알림 서비스
-│   ├── recordingService.ts # 녹화 서비스
-│   ├── settingsService.ts # 설정 서비스
-│   └── motionDetectionService.ts # 모션 감지 서비스
-├── components/            # 재사용 컴포넌트
-├── screens/              # 화면 컴포넌트
-├── navigation/           # 네비게이션
-├── stores/              # 상태 관리
-├── types/               # TypeScript 타입
-└── mocks/               # Mock 데이터
+├── app/                 # App-level configuration
+│   ├── navigation/      # Navigation setup
+│   ├── providers/       # Context providers
+│   └── config/         # App configuration
+├── features/           # Feature-based modules
+│   ├── auth/           # Authentication
+│   ├── camera/         # Camera functionality
+│   ├── viewer/         # Video viewing
+│   ├── connection/     # Device connection
+│   ├── settings/       # App settings
+│   └── recording/      # Recording functionality
+├── shared/             # Shared resources
+│   ├── components/     # Reusable UI components
+│   ├── services/      # Core services
+│   ├── hooks/         # Reusable hooks
+│   ├── stores/        # Global state
+│   ├── types/         # Global types
+│   └── utils/         # Utility functions
+└── design/            # Design system
+    ├── tokens/        # Design tokens
+    ├── themes/        # Themes
+    └── styles/        # Global styles
 ```
 
 ## 🚀 Installation

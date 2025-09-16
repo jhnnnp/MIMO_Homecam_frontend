@@ -8,7 +8,8 @@ import { notificationService } from './src/services/notificationService';
 import { recordingService } from './src/services/recordingService';
 import { webrtcService } from './src/services/webrtcService';
 import { useAuthStore } from './src/stores/authStore';
-import { initializeConfig } from './src/config';
+import { initializeConfig, default as configService } from './src/config';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,10 @@ export default function App() {
       await networkUtils.updateEnvironmentVariables();
       console.log('✅ 네트워크 설정 완료');
 
+      // 확인용 현재 URL 로그
+      console.log('🌐 API Base URL:', configService.getApiBaseUrl());
+      console.log('🔌 WS Base URL:', configService.getWsBaseUrl());
+
       // 3. 인증 초기화
       await initializeAuth();
       console.log('✅ 인증 초기화 완료');
@@ -64,7 +69,12 @@ export default function App() {
   };
 
   if (!isInitialized) {
-    return null; // 초기화 중에는 빈 화면
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text style={styles.loadingText}>앱을 초기화하는 중입니다...</Text>
+      </View>
+    );
   }
 
   return (
@@ -76,5 +86,19 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0', // 배경색
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+});
 
 
