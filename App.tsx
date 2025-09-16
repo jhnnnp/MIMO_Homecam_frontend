@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import AppNavigator from './src/navigation/AppNavigator';
-import { networkUtils } from './src/utils/networkUtils';
-import { notificationService } from './src/services/notificationService';
-import { recordingService } from './src/services/recordingService';
-import { webrtcService } from './src/services/webrtcService';
-import { useAuthStore } from './src/stores/authStore';
-import { initializeConfig, default as configService } from './src/config';
+import AppNavigator from './src/app/navigation/AppNavigator';
+import { networkUtils } from './src/shared/utils/networkUtils';
+import { notificationService } from './src/features/settings/services/notificationService';
+import { recordingService } from './src/features/recording/services/recordingService';
+import { webrtcService } from './src/shared/services/core/webrtcService';
+import { useAuthStore } from './src/shared/stores/authStore';
+import { initializeConfig, default as configService } from './src/app/config';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 const queryClient = new QueryClient({

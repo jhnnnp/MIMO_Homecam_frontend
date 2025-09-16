@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import LoginScreen from './src/screens/LoginScreen';
+import LoginScreen from './src/features/auth/screens/LoginScreen';
 
 export default function App() {
     const [showLogin, setShowLogin] = useState(false);
