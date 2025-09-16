@@ -315,6 +315,14 @@ const CameraHomeScreen: React.FC<CameraHomeScreenProps> = memo(({ navigation }) 
         }
     }, [connectionActions]);
 
+    const handleGenerateQRCode = useCallback(() => {
+        // QR 코드 생성 화면으로 네비게이션
+        navigation.navigate('QRCodeGenerator' as any, {
+            cameraId,
+            cameraName
+        });
+    }, [navigation, cameraId, cameraName]);
+
     // Render Methods
     const renderSystemStatus = useCallback(() => (
         <Animated.View
@@ -511,6 +519,7 @@ const CameraHomeScreen: React.FC<CameraHomeScreenProps> = memo(({ navigation }) 
                 <View style={styles.secondaryControls}>
                     {[
                         { icon: 'key', label: 'PIN 생성', onPress: handleGeneratePinCode },
+                        { icon: 'qr-code', label: 'QR 코드', onPress: handleGenerateQRCode },
                         { icon: 'settings', label: '설정', onPress: () => navigation.navigate('CameraSettings') },
                         { icon: 'recording', label: '녹화 목록', onPress: () => { } },
                     ].map((control, index) => (

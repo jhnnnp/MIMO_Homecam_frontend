@@ -188,6 +188,11 @@ export function useCameraConnection(
                 throw new Error('이미 연결 중입니다. 잠시 후 다시 시도해주세요.');
             }
 
+            // 카메라 정보 유효성 검증
+            if (!cameraId || !cameraName) {
+                throw new Error('카메라 정보가 설정되지 않았습니다. 먼저 카메라를 설정해주세요.');
+            }
+
             isConnectingRef.current = true;
             setLoading(true);
             clearError();
@@ -195,14 +200,17 @@ export function useCameraConnection(
             try {
                 logHook('useCameraConnection', 'generatePinCode', 'PIN 코드 생성 시작');
 
-                // 1. 6자리 PIN 코드 생성 (이것이 connectionId가 됨)
-                const pinCode = Math.floor(100000 + Math.random() * 900000).toString();
+                // 1. 안전한 6자리 PIN 코드 생성 (중복 방지를 위한 타임스탬프 포함)
+                const timestamp = Date.now().toString().slice(-3);
+                const randomPart = Math.floor(100 + Math.random() * 900).toString();
+                const pinCode = `${randomPart}${timestamp}`;
+                
                 console.log('🎯 [PIN 생성] 생성된 PIN 코드:', pinCode);
                 console.log('🎯 [PIN 생성] 카메라 ID:', cameraId);
                 console.log('🎯 [PIN 생성] 카메라 이름:', cameraName);
 
                 // 2. 홈캠 등록 API 호출
-                const { getApiBaseUrl } = await import('../config');
+                const { getApiBaseUrl } = await import('@/app/config');
                 const url = `${getApiBaseUrl()}/cameras/register`;
                 console.log('🌐 [PIN 생성] API URL:', url);
 
@@ -279,7 +287,7 @@ export function useCameraConnection(
                     pinCode,
                     timestamp: Date.now(),
                     version: '1.0.0',
-                    apiUrl: (await import('../config')).getApiBaseUrl()
+                    apiUrl: (await import('@/app/config')).getApiBaseUrl()
                 };
                 console.log('📋 [PIN 생성] PIN 데이터 생성:', JSON.stringify(pinData, null, 2));
 
@@ -302,13 +310,26 @@ export function useCameraConnection(
                 return pinCode;
             } catch (error) {
                 console.error('❌ [PIN 생성] 오류 발생:', error);
-                console.error('❌ [PIN 생성] 오류 상세:', {
-                    message: error instanceof Error ? error.message : String(error),
-                    stack: error instanceof Error ? error.stack : 'No stack trace',
-                    context: 'Camera Registration'
-                });
-                handleError(error, 'generatePinCode');
-                throw error;
+                
+                // 구체적인 에러 메시지 생성
+                let errorMessage = 'PIN 코드 생성에 실패했습니다.';
+                if (error instanceof Error) {
+                    if (error.message.includes('network') || error.message.includes('fetch')) {
+                        errorMessage = '네트워크 연결을 확인하고 다시 시도해주세요.';
+                    } else if (error.message.includes('unauthorized') || error.message.includes('403')) {
+                        errorMessage = '인증이 필요합니다. 다시 로그인해주세요.';
+                    } else if (error.message.includes('카메라 정보')) {
+                        errorMessage = error.message;
+                    } else if (error.message.includes('Cannot set property')) {
+                        errorMessage = '앱을 다시 시작해주세요. (내부 오류)';
+                    } else {
+                        errorMessage = `PIN 생성 실패: ${error.message}`;
+                    }
+                }
+                
+                console.error('❌ [PIN 생성] 사용자 메시지:', errorMessage);
+                handleError(new Error(errorMessage), 'generatePinCode');
+                throw new Error(errorMessage);
             } finally {
                 isConnectingRef.current = false;
             }

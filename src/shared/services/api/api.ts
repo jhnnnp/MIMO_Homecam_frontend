@@ -22,6 +22,8 @@ interface TokenManager {
     setTokens(accessToken: string, refreshToken: string): Promise<void>;
     clearTokens(): Promise<void>;
     refreshAccessToken(): Promise<string | null>;
+    isValidToken(token: string): boolean;
+    isTokenExpiringSoon(token: string, bufferMinutes?: number): boolean;
 }
 
 // 보안 토큰 관리자
@@ -142,7 +144,7 @@ class SecureTokenManager implements TokenManager {
         }
     }
 
-    private isValidToken(token: string): boolean {
+    isValidToken(token: string): boolean {
         if (!token || typeof token !== 'string') {
             return false;
         }
@@ -170,7 +172,7 @@ class SecureTokenManager implements TokenManager {
         }
     }
 
-    private isTokenExpiringSoon(token: string, bufferMinutes: number = 5): boolean {
+    isTokenExpiringSoon(token: string, bufferMinutes: number = 5): boolean {
         if (!token || typeof token !== 'string') {
             return false;
         }
@@ -231,7 +233,7 @@ class ApiClient {
 
                 if (token) {
                     // 토큰 만료 사전 체크 (5분 전 갱신)
-                    if (this.isTokenExpiringSoon(token)) {
+                    if (this.tokenManager.isTokenExpiringSoon(token)) {
                         apiLogger.info('토큰이 곧 만료됨 - 사전 갱신 시도');
                         try {
                             const newToken = await this.handleTokenRefresh();
@@ -332,7 +334,7 @@ class ApiClient {
             // 모든 토큰 제거
             await this.tokenManager.clearTokens();
             apiLogger.logAuthEvent('Auto logout due to authentication failure');
-            
+
             // 전역 인증 상태 초기화 이벤트 발생 (authStore에서 처리)
             // React Native 환경에서는 동적 import를 사용하여 순환 참조 방지
             try {

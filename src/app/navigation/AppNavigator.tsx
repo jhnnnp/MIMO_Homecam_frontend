@@ -26,6 +26,7 @@ import ViewerQRScanScreen from '@/features/viewer/screens/ViewerQRScanScreen';
 // Camera Mode Screens
 import CameraHomeScreen from '@/features/camera/screens/CameraHomeScreen';
 import CameraSettingsScreen from '@/features/camera/screens/CameraSettingsScreen';
+import QRCodeGeneratorScreen from '@/features/camera/screens/QRCodeGeneratorScreen';
 
 // Recording Screens
 import RecordingListScreen from '@/features/recording/screens/RecordingListScreen';
@@ -45,6 +46,7 @@ export type RootStackParamList = {
     LiveStream: { cameraId: string; cameraName: string; ipAddress: string; quality: string };
     CameraHome: undefined;
     CameraSettings: undefined;
+    QRCodeGenerator: { cameraId: string; cameraName: string };
     Settings: undefined;
     RecordingList: undefined;
     MotionDetectionSettings: undefined;
@@ -56,6 +58,12 @@ export type AuthStackParamList = {
     Login: undefined;
     Register: undefined;
     ForgotPassword: undefined;
+};
+
+export type CameraStackParamList = {
+    CameraHome: undefined;
+    CameraSettings: undefined;
+    QRCodeGenerator: { cameraId: string; cameraName: string };
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -138,6 +146,14 @@ export default function AppNavigator() {
                             component={CameraHomeScreen}
                         />
                         <RootStack.Screen name="CameraSettings" component={CameraSettingsScreen} />
+                        <RootStack.Screen 
+                            name="QRCodeGenerator" 
+                            component={QRCodeGeneratorScreen}
+                            options={{
+                                presentation: 'modal',
+                                gestureEnabled: true,
+                            }}
+                        />
                         <RootStack.Screen name="Settings" component={SettingsScreen} />
                         <RootStack.Screen name="RecordingList" component={RecordingListScreen} />
                         <RootStack.Screen name="MotionDetectionSettings" component={MotionDetectionSettingsScreen} />
