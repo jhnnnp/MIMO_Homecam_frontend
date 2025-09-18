@@ -154,7 +154,7 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
         }
     }, []);
 
-    const handleContinue = useCallback(() => {
+    const handleContinue = useCallback(async () => {
         if (!selectedMode) return;
 
         if (Platform.OS === 'ios' && Haptics) {
@@ -166,7 +166,17 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
         }
 
         if (selectedMode === 'viewer') {
-            navigation.replace('ViewerHome');
+            // 뷰어 모드: 항상 뷰어 대시보드로 이동
+            navigation.replace('ViewerDashboard');
+
+            // 디버깅용: API 응답 구조 확인
+            try {
+                const { api } = await import('@/shared/services/api/api');
+                const response = await api.get('/cameras');
+                console.log('[ModeSelection] Camera API test response:', response.data);
+            } catch (error) {
+                console.error('[ModeSelection] Camera API test failed:', error);
+            }
         } else if (selectedMode === 'camera') {
             navigation.replace('CameraHome');
         } else if (selectedMode === 'websocket') {

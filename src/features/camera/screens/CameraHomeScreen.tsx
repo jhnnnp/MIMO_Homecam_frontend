@@ -1,100 +1,57 @@
 /**
- * CameraHomeScreen - Enterprise-grade Camera Dashboard
+ * CameraHomeScreen - 홈캠 대기 화면
  * 
- * Features:
- * - Professional camera control interface
- * - Real-time streaming capabilities with WebRTC
- * - Advanced permission management
- * - PIN code generation and sharing
- * - Live viewer monitoring
- * - Recording controls with quality options
- * - Comprehensive error handling and logging
- * - Accessibility support (WCAG 2.1 AA)
- * - Performance optimized animations
- * - Enterprise security patterns
+ * 항상 대기 모드:
+ * - 카메라 미리보기 (무엇을 찍고 있는지 확인)
+ * - 연결 코드 생성 (뷰어에서 접속용 QR/PIN)
+ * - 기본 설정 접근
+ * 
+ * 홈캠 본질: 거치해놓고 계속 촬영, 뷰어에서 접속하여 시청
  */
 
-import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     StatusBar,
-    Alert,
-    Animated,
-    ScrollView,
-    RefreshControl,
     Dimensions,
     Platform,
-    AppState,
-    BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as MediaLibrary from 'expo-media-library';
 
 // Design System
-import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
+import { spacing, radius } from '@/design/tokens';
 
 // Navigation Types
 import { CameraStackParamList } from '@/app/navigation/AppNavigator';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '@/features/../app/navigation/AppNavigator';
 
-// Hooks and Services
+// Hooks
 import { useCameraConnection } from '../../connection/hooks/useCameraConnection';
 
-// Components
-import LoadingState from '@/shared/components/feedback/LoadingState';
-import ErrorState from '@/shared/components/feedback/ErrorState';
-
-// Utils
-import { logger } from '../../../shared/utils/logger';
-import { errorHandler } from '../../../shared/utils/errorHandler';
-
 // Constants
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const ANIMATION_DURATION = 300;
-const AUTO_REFRESH_INTERVAL = 5000; // 5 seconds
-const PIN_CODE_EXPIRY_TIME = 600000; // 10 minutes
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Enhanced Color Palette for Enterprise
-const enterpriseColors = {
-    primary: '#2563EB',
-    primaryDark: '#1D4ED8',
-    secondary: '#7C3AED',
-    accent: '#F59E0B',
-    success: '#059669',
-    warning: '#D97706',
-    error: '#DC2626',
-
-    // Neutral palette
-    gray50: '#F9FAFB',
-    gray100: '#F3F4F6',
-    gray200: '#E5E7EB',
-    gray300: '#D1D5DB',
-    gray400: '#9CA3AF',
-    gray500: '#6B7280',
-    gray600: '#4B5563',
-    gray700: '#374151',
-    gray800: '#1F2937',
-    gray900: '#111827',
-
-    // Glass morphism
-    glassBg: 'rgba(255, 255, 255, 0.1)',
-    glassStroke: 'rgba(255, 255, 255, 0.2)',
-
-    // Status colors
-    online: '#10B981',
-    offline: '#EF4444',
-    standby: '#F59E0B',
-    recording: '#DC2626',
+// 간결한 색상 팔레트
+const colors = {
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
 };
 
 // Types
@@ -102,70 +59,21 @@ interface CameraHomeScreenProps {
     navigation: NativeStackNavigationProp<CameraStackParamList, 'CameraHome'>;
 }
 
-interface StreamingMetrics {
-    quality: 'HD' | 'FHD' | '4K';
-    fps: number;
-    bitrate: string;
-    viewers: number;
-    uptime: string;
-    dataUsed: string;
-    cpuUsage: number;
-    memoryUsage: number;
-    networkLatency: number;
-}
-
-interface SystemStatus {
-    camera: 'online' | 'offline' | 'error';
-    network: 'connected' | 'disconnected' | 'unstable';
-    storage: number; // percentage
-    battery: number; // percentage
-    temperature: number; // celsius
-}
-
 // Component Implementation
 const CameraHomeScreen: React.FC<CameraHomeScreenProps> = memo(({ navigation }) => {
     const rootNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
     // Camera Connection
     const cameraId = `MIMO_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const cameraName = '프로페셔널 홈캠';
     const [connectionState, connectionActions] = useCameraConnection(cameraId, cameraName);
 
-    // State Management
+    // 홈캠 상태 관리
     const [cameraType, setCameraType] = useState<CameraType>('back');
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [metrics, setMetrics] = useState<StreamingMetrics>({
-        quality: 'FHD',
-        fps: 30,
-        bitrate: '2.5 Mbps',
-        viewers: 0,
-        uptime: '00:00:00',
-        dataUsed: '0 GB',
-        cpuUsage: 15,
-        memoryUsage: 342,
-        networkLatency: 12,
-    });
-    const [systemStatus, setSystemStatus] = useState<SystemStatus>({
-        camera: 'online',
-        network: 'connected',
-        storage: 78,
-        battery: 85,
-        temperature: 42,
-    });
 
     // Permission Management
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
     const [hasAllPermissions, setHasAllPermissions] = useState(false);
-
-    // Animation Values
-    const [fadeAnim] = useState(new Animated.Value(0));
-    const [slideAnim] = useState(new Animated.Value(30));
-    const [metricsAnim] = useState(new Animated.Value(0));
-    const [pulseAnim] = useState(new Animated.Value(1));
-
-    // Refs
-    const refreshIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
-    const metricsIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
     // Check permissions
     const checkAllPermissions = useCallback(async () => {
@@ -183,383 +91,58 @@ const CameraHomeScreen: React.FC<CameraHomeScreenProps> = memo(({ navigation }) 
             setHasAllPermissions(!!allGranted);
             return allGranted;
         } catch (error) {
-            logger.error('[Permissions] Failed to check permissions', { error });
+            console.error('권한 확인 실패:', error);
             return false;
         }
     }, [cameraPermission?.granted]);
 
-    // Update metrics in real-time
-    const updateMetrics = useCallback(() => {
-        setMetrics(prev => ({
-            ...prev,
-            fps: 30 + Math.random() * 2 - 1, // 29-31 fps
-            cpuUsage: Math.max(10, Math.min(50, prev.cpuUsage + (Math.random() * 6 - 3))),
-            memoryUsage: Math.max(200, Math.min(500, prev.memoryUsage + (Math.random() * 20 - 10))),
-            networkLatency: Math.max(5, Math.min(50, prev.networkLatency + (Math.random() * 4 - 2))),
-        }));
-
-        setSystemStatus(prev => ({
-            ...prev,
-            storage: Math.max(70, Math.min(85, prev.storage + (Math.random() * 2 - 1))),
-            battery: Math.max(80, Math.min(95, prev.battery + (Math.random() * 2 - 1))),
-            temperature: Math.max(35, Math.min(50, prev.temperature + (Math.random() * 2 - 1))),
-        }));
-    }, []);
-
     // Effects
     useEffect(() => {
         checkAllPermissions();
+    }, [checkAllPermissions]);
 
-        // Entrance animation
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 600,
-                useNativeDriver: true,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 600,
-                useNativeDriver: true,
-            }),
-        ]).start(() => {
-            // Start metrics animation after entrance
-            Animated.timing(metricsAnim, {
-                toValue: 1,
-                duration: 400,
-                useNativeDriver: true,
-            }).start();
-        });
-
-        // Start metrics update interval
-        metricsIntervalRef.current = setInterval(updateMetrics, 2000);
-
-        return () => {
-            if (refreshIntervalRef.current) {
-                clearInterval(refreshIntervalRef.current);
-            }
-            if (metricsIntervalRef.current) {
-                clearInterval(metricsIntervalRef.current);
-            }
-        };
-    }, [checkAllPermissions, updateMetrics]);
-
-    // Streaming pulse animation
-    useEffect(() => {
-        if (isStreaming) {
-            const pulseAnimation = Animated.loop(
-                Animated.sequence([
-                    Animated.timing(pulseAnim, {
-                        toValue: 1.05,
-                        duration: 1500,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(pulseAnim, {
-                        toValue: 1,
-                        duration: 1500,
-                        useNativeDriver: true,
-                    }),
-                ])
-            );
-            pulseAnimation.start();
-            return () => pulseAnimation.stop();
-        }
-    }, [isStreaming]);
-
-    // Event Handlers
-    const handleRefreshStatus = useCallback(async () => {
-        if (isRefreshing) return;
-        setIsRefreshing(true);
-        try {
-            await connectionActions.reconnect();
-            updateMetrics();
-        } catch (error) {
-            logger.error('[CameraHome] Failed to refresh status', { error });
-        } finally {
-            setIsRefreshing(false);
-        }
-    }, [isRefreshing, connectionActions, updateMetrics]);
-
-    const handleToggleStreaming = useCallback(() => {
-        setIsStreaming(prev => !prev);
-        if (!isStreaming) {
-            setMetrics(prev => ({ ...prev, viewers: prev.viewers + 1 }));
-        }
-    }, [isStreaming]);
-
+    // Event Handlers - 홈캠은 항상 대기 상태이므로 토글 불필요
 
     const handleGenerateQRCode = useCallback(() => {
-        // QR 코드 생성 화면으로 네비게이션
         navigation.navigate('QRCodeGenerator' as any, {
             cameraId,
             cameraName
         });
     }, [navigation, cameraId, cameraName]);
 
-    // Render Methods
-    const renderSystemStatus = useCallback(() => (
-        <Animated.View
-            style={[
-                styles.statusGrid,
-                {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }]
-                }
-            ]}
-        >
-            {[
-                {
-                    key: 'camera',
-                    label: '카메라',
-                    value: systemStatus.camera,
-                    icon: 'videocam',
-                    color: systemStatus.camera === 'online' ? enterpriseColors.success : enterpriseColors.error
-                },
-                {
-                    key: 'network',
-                    label: '네트워크',
-                    value: systemStatus.network,
-                    icon: 'wifi',
-                    color: systemStatus.network === 'connected' ? enterpriseColors.success : enterpriseColors.warning
-                },
-                {
-                    key: 'storage',
-                    label: '저장소',
-                    value: `${systemStatus.storage}%`,
-                    icon: 'server',
-                    color: systemStatus.storage > 80 ? enterpriseColors.warning : enterpriseColors.success
-                },
-                {
-                    key: 'battery',
-                    label: '배터리',
-                    value: `${systemStatus.battery}%`,
-                    icon: 'battery-full',
-                    color: systemStatus.battery > 80 ? enterpriseColors.success : enterpriseColors.warning
-                },
-            ].map((item, index) => (
-                <Animated.View
-                    key={item.key}
-                    style={[
-                        styles.statusCard,
-                        {
-                            opacity: metricsAnim,
-                            transform: [{
-                                translateY: metricsAnim.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [20, 0]
-                                })
-                            }]
-                        }
-                    ]}
-                >
-                    <LinearGradient
-                        colors={[enterpriseColors.gray50, 'rgba(255,255,255,0.9)']}
-                        style={styles.statusCardGradient}
-                    >
-                        <View style={[styles.statusIcon, { backgroundColor: item.color + '20' }]}>
-                            <Ionicons name={item.icon as any} size={20} color={item.color} />
-                        </View>
-                        <Text style={styles.statusLabel}>{item.label}</Text>
-                        <Text style={[styles.statusValue, { color: item.color }]}>{item.value}</Text>
-                    </LinearGradient>
-                </Animated.View>
-            ))}
-        </Animated.View>
-    ), [fadeAnim, slideAnim, metricsAnim, systemStatus]);
-
-    const renderCameraPreview = useCallback(() => (
-        <Animated.View
-            style={[
-                styles.previewContainer,
-                {
-                    opacity: fadeAnim,
-                    transform: [
-                        { translateY: slideAnim },
-                        { scale: pulseAnim }
-                    ]
-                }
-            ]}
-        >
-            <LinearGradient
-                colors={[enterpriseColors.gray100, enterpriseColors.gray50]}
-                style={styles.previewCard}
-            >
-                <View style={styles.previewHeader}>
-                    <View style={styles.previewTitleContainer}>
-                        <View style={[styles.statusDot, {
-                            backgroundColor: isStreaming ? enterpriseColors.recording : enterpriseColors.standby
-                        }]} />
-                        <Text style={styles.previewTitle}>{cameraName}</Text>
-                    </View>
-                    <View style={styles.previewControls}>
-                        <TouchableOpacity style={styles.controlButton} activeOpacity={0.8}>
-                            <Ionicons name="settings" size={16} color={enterpriseColors.gray600} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.controlButton} activeOpacity={0.8}>
-                            <Ionicons name="expand" size={16} color={enterpriseColors.gray600} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                <View style={styles.cameraViewContainer}>
-                    {hasAllPermissions ? (
-                        <CameraView style={styles.cameraView} facing={cameraType}>
-                            <LinearGradient
-                                colors={['rgba(0,0,0,0.3)', 'transparent', 'rgba(0,0,0,0.5)']}
-                                style={styles.cameraOverlay}
-                            >
-                                <View style={styles.overlayTop}>
-                                    <View style={styles.liveIndicator}>
-                                        <View style={[styles.liveDot, {
-                                            backgroundColor: isStreaming ? enterpriseColors.recording : enterpriseColors.standby
-                                        }]} />
-                                        <Text style={styles.liveText}>
-                                            {isStreaming ? 'LIVE' : 'STANDBY'}
-                                        </Text>
-                                    </View>
-                                    <Text style={styles.qualityBadge}>{metrics.quality}</Text>
-                                </View>
-
-                                <View style={styles.overlayBottom}>
-                                    <View style={styles.metricsRow}>
-                                        <Text style={styles.metricText}>{metrics.fps.toFixed(0)} FPS</Text>
-                                        <Text style={styles.metricText}>{metrics.bitrate}</Text>
-                                        <Text style={styles.metricText}>{metrics.viewers} 시청자</Text>
-                                    </View>
-
-                                    <TouchableOpacity
-                                        style={styles.flipButton}
-                                        onPress={() => setCameraType(current => current === 'back' ? 'front' : 'back')}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Ionicons name="camera-reverse" size={20} color={enterpriseColors.gray50} />
-                                    </TouchableOpacity>
-                                </View>
-                            </LinearGradient>
-                        </CameraView>
-                    ) : (
-                        <View style={styles.permissionPlaceholder}>
-                            <Ionicons name="videocam-off" size={48} color={enterpriseColors.gray400} />
-                            <Text style={styles.permissionText}>카메라 권한 필요</Text>
-                        </View>
-                    )}
-                </View>
-            </LinearGradient>
-        </Animated.View>
-    ), [fadeAnim, slideAnim, pulseAnim, isStreaming, hasAllPermissions, cameraType, metrics, cameraName]);
-
-    const renderControlPanel = useCallback(() => (
-        <Animated.View
-            style={[
-                styles.controlPanel,
-                {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }]
-                }
-            ]}
-        >
-            <LinearGradient
-                colors={[enterpriseColors.gray50, 'rgba(255,255,255,0.9)']}
-                style={styles.controlPanelGradient}
-            >
-                <Text style={styles.controlPanelTitle}>제어 패널</Text>
-
-                <View style={styles.controlRow}>
-                    <TouchableOpacity
-                        style={[styles.primaryControl, isStreaming && styles.primaryControlActive]}
-                        onPress={handleToggleStreaming}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={isStreaming ?
-                                [enterpriseColors.error, '#EF4444'] :
-                                [enterpriseColors.success, enterpriseColors.primary]
-                            }
-                            style={styles.primaryControlGradient}
-                        >
-                            <Ionicons
-                                name={isStreaming ? "stop-circle" : "play-circle"}
-                                size={24}
-                                color="white"
-                            />
-                            <Text style={styles.primaryControlText}>
-                                {isStreaming ? '송출 중지' : '라이브 송출'}
-                            </Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.secondaryControls}>
-                    {[
-                        { icon: 'qr-code', label: '연결 코드', onPress: handleGenerateQRCode },
-                        { icon: 'settings', label: '설정', onPress: () => navigation.navigate('CameraSettings') },
-                        { icon: 'recording', label: '녹화 목록', onPress: () => { } },
-                    ].map((control, index) => (
-                        <TouchableOpacity
-                            key={index}
-                            style={styles.secondaryControl}
-                            onPress={control.onPress}
-                            activeOpacity={0.8}
-                        >
-                            <View style={[styles.secondaryControlIcon, { backgroundColor: enterpriseColors.primary + '10' }]}>
-                                <Ionicons name={control.icon as any} size={20} color={enterpriseColors.primary} />
-                            </View>
-                            <Text style={styles.secondaryControlText}>{control.label}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            </LinearGradient>
-        </Animated.View>
-    ), [fadeAnim, slideAnim, isStreaming, handleToggleStreaming, handleGeneratePinCode, navigation]);
-
-    // Main Render
+    // 권한 없을 때 화면
     if (!hasAllPermissions) {
         return (
             <View style={styles.container}>
-                <LinearGradient
-                    colors={[enterpriseColors.gray50, enterpriseColors.gray100]}
-                    style={styles.backgroundGradient}
-                />
                 <SafeAreaView style={styles.safeArea}>
-                    {/* Custom Header */}
-                    {/* Custom Header */}
-                    <View style={styles.customHeader}>
+                    <View style={styles.header}>
                         <TouchableOpacity
                             style={styles.backButton}
                             onPress={() => rootNavigation.navigate('ModeSelection')}
-                            activeOpacity={0.7}
                         >
-                            <Ionicons name="arrow-back" size={24} color={enterpriseColors.gray700} />
+                            <Ionicons name="arrow-back" size={24} color={colors.text} />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>홈캠 모드</Text>
                         <TouchableOpacity
                             style={styles.settingsButton}
                             onPress={() => navigation.navigate("CameraSettings")}
-                            activeOpacity={0.7}
                         >
-                            <Ionicons name="settings-outline" size={24} color={enterpriseColors.gray700} />
+                            <Ionicons name="settings-outline" size={24} color={colors.text} />
                         </TouchableOpacity>
                     </View>
-                    <View style={styles.permissionScreen}>
-                        <View style={styles.permissionCard}>
-                            <Ionicons name="videocam-off" size={64} color={enterpriseColors.gray400} />
-                            <Text style={styles.permissionTitle}>카메라 권한이 필요합니다</Text>
-                            <Text style={styles.permissionSubtitle}>
-                                홈캠 기능을 사용하려면 카메라, 마이크, 저장소 권한이 필요합니다.
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.permissionButton}
-                                onPress={checkAllPermissions}
-                                activeOpacity={0.8}
-                            >
-                                <LinearGradient
-                                    colors={[enterpriseColors.primary, enterpriseColors.primaryDark]}
-                                    style={styles.permissionButtonGradient}
-                                >
-                                    <Text style={styles.permissionButtonText}>권한 허용</Text>
-                                </LinearGradient>
-                            </TouchableOpacity>
-                        </View>
+
+                    <View style={styles.permissionContainer}>
+                        <Ionicons name="videocam-off" size={64} color={colors.textSecondary} />
+                        <Text style={styles.permissionTitle}>카메라 권한이 필요합니다</Text>
+                        <Text style={styles.permissionSubtitle}>
+                            홈캠 기능을 사용하려면 권한을 허용해주세요
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.permissionButton}
+                            onPress={checkAllPermissions}
+                        >
+                            <Text style={styles.permissionButtonText}>권한 허용</Text>
+                        </TouchableOpacity>
                     </View>
                 </SafeAreaView>
             </View>
@@ -567,55 +150,80 @@ const CameraHomeScreen: React.FC<CameraHomeScreenProps> = memo(({ navigation }) 
     }
 
     return (
-        <>
-            <StatusBar barStyle="dark-content" backgroundColor={enterpriseColors.gray50} />
-            <View style={styles.container}>
-                <LinearGradient
-                    colors={[enterpriseColors.gray50, enterpriseColors.gray100]}
-                    style={styles.backgroundGradient}
-                />
-
-                <SafeAreaView style={styles.safeArea}>
-                    {/* Custom Header */}
-                    {/* Custom Header */}
-                    <View style={styles.customHeader}>
-                        <TouchableOpacity
-                            style={styles.backButton}
-                            onPress={() => rootNavigation.navigate('ModeSelection')}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons name="arrow-back" size={24} color={enterpriseColors.gray700} />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>홈캠 모드</Text>
-                        <TouchableOpacity
-                            style={styles.settingsButton}
-                            onPress={() => navigation.navigate("CameraSettings")}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons name="settings-outline" size={24} color={enterpriseColors.gray700} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView
-                        style={styles.content}
-                        contentContainerStyle={styles.scrollContent}
-                        showsVerticalScrollIndicator={false}
-                        refreshControl={
-                            <RefreshControl
-                                refreshing={isRefreshing}
-                                onRefresh={handleRefreshStatus}
-                                colors={[enterpriseColors.primary]}
-                                progressBackgroundColor={enterpriseColors.gray50}
-                            />
-                        }
+        <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+            <SafeAreaView style={styles.safeArea}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => rootNavigation.navigate('ModeSelection')}
                     >
-                        {renderSystemStatus()}
-                        {renderCameraPreview()}
-                        {renderControlPanel()}
-                    </ScrollView>
-                </SafeAreaView>
-            </View>
-        </>
+                        <Ionicons name="arrow-back" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>홈캠 모드</Text>
+                    <TouchableOpacity
+                        style={styles.settingsButton}
+                        onPress={() => navigation.navigate("CameraSettings")}
+                    >
+                        <Ionicons name="settings-outline" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* 홈캠 상태 - 항상 대기 */}
+                <View style={styles.statusContainer}>
+                    <View style={styles.statusRow}>
+                        <View style={styles.statusItem}>
+                            <View style={[styles.statusDot, {
+                                backgroundColor: colors.success
+                            }]} />
+                            <Text style={styles.statusText}>연결 대기 중</Text>
+                        </View>
+                        <Text style={styles.cameraInfo}>{cameraName}</Text>
+                    </View>
+                </View>
+
+                {/* 카메라 미리보기 */}
+                <View style={styles.previewContainer}>
+                    <CameraView style={styles.cameraView} facing={cameraType}>
+                        <View style={styles.cameraOverlay}>
+                            <TouchableOpacity
+                                style={styles.flipButton}
+                                onPress={() => setCameraType(current => current === 'back' ? 'front' : 'back')}
+                            >
+                                <Ionicons name="camera-reverse" size={20} color={colors.surface} />
+                            </TouchableOpacity>
+                        </View>
+                    </CameraView>
+                </View>
+
+                {/* 제어 패널 */}
+                <View style={styles.controlPanel}>
+                    {/* 메인 연결 코드 버튼 */}
+                    <TouchableOpacity
+                        style={styles.mainButton}
+                        onPress={handleGenerateQRCode}
+                    >
+                        <LinearGradient
+                            colors={[colors.primary, '#2196F3']}
+                            style={styles.mainButtonGradient}
+                        >
+                            <Ionicons name="qr-code" size={24} color="white" />
+                            <Text style={styles.mainButtonText}>연결 코드 보기</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    {/* 설정 버튼 */}
+                    <TouchableOpacity
+                        style={styles.settingsControl}
+                        onPress={() => navigation.navigate('CameraSettings')}
+                    >
+                        <Ionicons name="settings-outline" size={20} color={colors.primary} />
+                        <Text style={styles.settingsControlText}>카메라 설정</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        </View>
     );
 });
 
@@ -623,162 +231,89 @@ CameraHomeScreen.displayName = 'CameraHomeScreen';
 
 export default CameraHomeScreen;
 
-// Enhanced Styles
+// 간결한 스타일
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: enterpriseColors.gray50,
-    },
-    backgroundGradient: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        backgroundColor: colors.background,
     },
     safeArea: {
         flex: 1,
-        paddingTop: 0,
     },
-    content: {
-        flex: 1,
-    },
-    scrollContent: {
-        padding: spacing.lg,
-        paddingBottom: spacing.xl * 2,
-    },
-
-    // Custom Header
-    customHeader: {
+    header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
-        backgroundColor: 'transparent',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: enterpriseColors.gray200,
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
+        backgroundColor: colors.background,
     },
     headerTitle: {
-        ...typography.h2,
-        color: enterpriseColors.gray800,
-        fontWeight: '700',
+        fontSize: 18,
+        fontWeight: '600',
+        color: colors.text,
     },
     settingsButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
+        backgroundColor: colors.background,
     },
 
-    // Permission Screen
-    permissionScreen: {
+    // 권한 화면
+    permissionContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: spacing.xl,
     },
-    permissionCard: {
-        backgroundColor: 'white',
-        borderRadius: radius.xl,
-        padding: spacing.xl * 2,
-        alignItems: 'center',
-        ...elevation['3'],
-        width: '100%',
-        maxWidth: 400,
-    },
     permissionTitle: {
-        ...typography.h2,
-        color: enterpriseColors.gray800,
-        textAlign: 'center',
+        fontSize: 20,
+        fontWeight: '600',
+        color: colors.text,
         marginTop: spacing.lg,
         marginBottom: spacing.sm,
+        textAlign: 'center',
     },
     permissionSubtitle: {
-        ...typography.body,
-        color: enterpriseColors.gray600,
+        fontSize: 16,
+        color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: spacing.xl,
-        lineHeight: 24,
+        lineHeight: 22,
     },
     permissionButton: {
-        borderRadius: radius.lg,
-        overflow: 'hidden',
-        width: '100%',
-    },
-    permissionButtonGradient: {
+        backgroundColor: colors.primary,
         paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.xl,
-        alignItems: 'center',
+        paddingHorizontal: spacing.xl * 2,
+        borderRadius: radius.lg,
     },
     permissionButtonText: {
-        ...typography.bodyLg,
-        color: 'white',
+        color: colors.surface,
+        fontSize: 16,
         fontWeight: '600',
     },
 
-    // System Status Grid
-    statusGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-        marginBottom: spacing.lg,
-    },
-    statusCard: {
-        flex: 1,
-        minWidth: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2,
+    // 상태 표시
+    statusContainer: {
+        backgroundColor: colors.surface,
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.md,
         borderRadius: radius.lg,
-        overflow: 'hidden',
-        ...elevation['1'],
+        padding: spacing.lg,
     },
-    statusCardGradient: {
-        padding: spacing.md,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: enterpriseColors.gray200,
-    },
-    statusIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: spacing.xs,
-    },
-    statusLabel: {
-        ...typography.caption,
-        color: enterpriseColors.gray600,
-        marginBottom: 2,
-    },
-    statusValue: {
-        ...typography.bodyLg,
-        fontWeight: '600',
-    },
-
-    // Camera Preview
-    previewContainer: {
-        marginBottom: spacing.lg,
-    },
-    previewCard: {
-        borderRadius: radius.xl,
-        overflow: 'hidden',
-        ...elevation['2'],
-        borderWidth: 1,
-        borderColor: enterpriseColors.gray200,
-    },
-    previewHeader: {
+    statusRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: enterpriseColors.gray200,
     },
-    previewTitleContainer: {
+    statusItem: {
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -788,173 +323,83 @@ const styles = StyleSheet.create({
         borderRadius: 4,
         marginRight: spacing.sm,
     },
-    previewTitle: {
-        ...typography.h3,
-        color: enterpriseColors.gray800,
+    statusText: {
+        fontSize: 16,
         fontWeight: '600',
+        color: colors.text,
     },
-    previewControls: {
-        flexDirection: 'row',
-        gap: spacing.sm,
+    cameraInfo: {
+        fontSize: 16,
+        color: colors.textSecondary,
+        fontWeight: '500',
     },
-    controlButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: enterpriseColors.gray100,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    cameraViewContainer: {
-        height: SCREEN_HEIGHT * 0.35,
-        backgroundColor: enterpriseColors.gray200,
+
+    // 카메라 미리보기
+    previewContainer: {
+        margin: spacing.lg,
+        borderRadius: radius.xl,
+        overflow: 'hidden',
+        backgroundColor: colors.surface,
+        aspectRatio: 16 / 9,
     },
     cameraView: {
         flex: 1,
     },
     cameraOverlay: {
         flex: 1,
-        padding: spacing.lg,
-        justifyContent: 'space-between',
-    },
-    overlayTop: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-    },
-    liveIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.full,
-    },
-    liveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        marginRight: spacing.xs,
-    },
-    liveText: {
-        ...typography.caption,
-        color: 'white',
-        fontWeight: '600',
-    },
-    qualityBadge: {
-        ...typography.caption,
-        color: 'white',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        borderRadius: radius.sm,
-        fontWeight: '600',
-    },
-    overlayBottom: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         alignItems: 'flex-end',
-    },
-    metricsRow: {
-        flexDirection: 'row',
-        gap: spacing.md,
-    },
-    metricText: {
-        ...typography.caption,
-        color: 'white',
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        borderRadius: radius.sm,
+        padding: spacing.lg,
     },
     flipButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: 'rgba(0,0,0,0.6)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    permissionPlaceholder: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: enterpriseColors.gray100,
-    },
-    permissionText: {
-        ...typography.body,
-        color: enterpriseColors.gray500,
-        marginTop: spacing.md,
+
+    // 제어 패널
+    controlPanel: {
+        padding: spacing.lg,
+        paddingBottom: spacing.xl,
+        gap: spacing.lg,
     },
 
-    // Control Panel
-    controlPanel: {
-        marginBottom: spacing.lg,
-    },
-    controlPanelGradient: {
-        borderRadius: radius.xl,
-        padding: spacing.lg,
-        borderWidth: 1,
-        borderColor: enterpriseColors.gray200,
-        ...elevation['1'],
-    },
-    controlPanelTitle: {
-        ...typography.h3,
-        color: enterpriseColors.gray800,
-        marginBottom: spacing.lg,
-        fontWeight: '600',
-    },
-    controlRow: {
-        marginBottom: spacing.lg,
-    },
-    primaryControl: {
+    // 메인 버튼
+    mainButton: {
         borderRadius: radius.lg,
         overflow: 'hidden',
-        ...elevation['2'],
     },
-    primaryControlActive: {
-        transform: [{ scale: 1.02 }],
-    },
-    primaryControlGradient: {
+    mainButtonGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.xl,
         gap: spacing.sm,
     },
-    primaryControlText: {
-        ...typography.bodyLg,
-        color: 'white',
+    mainButtonText: {
+        color: colors.surface,
+        fontSize: 18,
         fontWeight: '600',
     },
-    secondaryControls: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-    },
-    secondaryControl: {
-        flex: 1,
-        minWidth: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md * 2) / 3,
-        backgroundColor: 'white',
+
+    // 설정 버튼
+    settingsControl: {
+        backgroundColor: colors.surface,
         borderRadius: radius.lg,
         padding: spacing.lg,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: enterpriseColors.gray200,
-    },
-    secondaryControlIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
+        gap: spacing.sm,
     },
-    secondaryControlText: {
-        ...typography.body,
-        color: enterpriseColors.gray700,
-        textAlign: 'center',
+    settingsControlText: {
+        fontSize: 16,
+        color: colors.text,
         fontWeight: '500',
     },
 });
