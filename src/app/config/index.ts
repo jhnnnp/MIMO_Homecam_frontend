@@ -13,6 +13,13 @@ interface AppConfig {
         retryDelay: number;
         timeout: number;
     };
+    websocket: {
+        host: string;
+        port: number;
+        secure: boolean;
+        reconnectAttempts: number;
+        heartbeatInterval: number;
+    };
 }
 
 class ConfigService {
@@ -32,6 +39,13 @@ class ConfigService {
                 retryAttempts: 3,
                 retryDelay: 1000,
                 timeout: 10000,
+            },
+            websocket: {
+                host: 'localhost',
+                port: 8080, // 별도 WebSocket 서버 포트
+                secure: false,
+                reconnectAttempts: 5,
+                heartbeatInterval: 30000,
             },
         };
     }
@@ -162,6 +176,9 @@ class ConfigService {
 
         this.config.apiBaseUrl = `http://${newIP}:${this.config.serverPort}/api`;
         this.config.wsBaseUrl = `ws://${newIP}:${this.config.serverPort}`; // WS도 API 포트 사용 (/ws 경로는 클라이언트에서 추가)
+
+        // WebSocket 설정도 업데이트
+        this.config.websocket.host = newIP;
 
         simpleNetworkDiscovery.setCurrentIP(newIP);
 

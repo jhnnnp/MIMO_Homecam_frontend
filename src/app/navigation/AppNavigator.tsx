@@ -17,7 +17,9 @@ import SettingsScreen from '@/features/settings/screens/SettingsScreen';
 import MotionDetectionSettingsScreen from '@/features/settings/screens/MotionDetectionSettingsScreen';
 import NotificationSettingsScreen from '@/features/settings/screens/NotificationSettingsScreen';
 
+
 // Viewer Mode Screens
+import ViewerDashboardScreen from '@/features/viewer/screens/ViewerDashboardScreen';
 import ViewerHomeScreen from '@/features/viewer/screens/ViewerHomeScreen';
 import ViewerLiveStreamScreen from '@/features/viewer/screens/ViewerLiveStreamScreen';
 import ViewerPinCodeScreen from '@/features/viewer/screens/ViewerPinCodeScreen';
@@ -40,10 +42,11 @@ import { useAuthStore } from '@/shared/stores/authStore';
 export type RootStackParamList = {
     Auth: undefined;
     ModeSelection: undefined;
+    ViewerDashboard: undefined;
     ViewerHome: undefined;
     ViewerPinCode: undefined;
     ViewerQRScan: undefined;
-    LiveStream: { cameraId: string; cameraName: string; ipAddress: string; quality: string };
+    LiveStream: { cameraId: string; cameraName: string; ipAddress: string; quality: string; isAdmin?: boolean };
     CameraHome: undefined;
     CameraSettings: undefined;
     QRCodeGenerator: { cameraId: string; cameraName: string };
@@ -111,6 +114,10 @@ export default function AppNavigator() {
                             options={{
                                 gestureEnabled: false,
                             }}
+                        />
+                        <RootStack.Screen
+                            name="ViewerDashboard"
+                            component={ViewerDashboardScreen}
                         />
                         <RootStack.Screen
                             name="ViewerHome"

@@ -9,7 +9,16 @@ import { recordingService } from './src/features/recording/services/recordingSer
 import { webrtcService } from './src/shared/services/core/webrtcService';
 import { useAuthStore } from './src/shared/stores/authStore';
 import { initializeConfig, default as configService } from './src/app/config';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, LogBox } from 'react-native';
+
+// LogBox 설정 - 개발 환경에서 알려진 경고 무시
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    'It is not supported to use minDist with failOffsetX or failOffsetY',
+    'Non-serializable values were found in the navigation state',
+    'Require cycles are allowed',
+  ]);
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
