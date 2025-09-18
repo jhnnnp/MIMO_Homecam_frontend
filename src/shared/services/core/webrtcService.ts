@@ -3,6 +3,7 @@ import { Audio } from 'expo-av';
 import { createLogger } from '@/shared/utils/logger';
 import { withErrorHandling, createNetworkError, createTimeoutError } from '@/shared/utils/errorHandler';
 import config from '@/app/config';
+import { signalingService } from './signalingService';
 
 // WebRTC 서비스 로거
 const webrtcLogger = createLogger('WebRTCService');
@@ -133,6 +134,36 @@ class WebRTCService {
         // Expo Go 환경 감지
         this.isExpoGo = !RTCPeerConnection || RTCPeerConnection.name === 'MockRTCPeerConnection';
         webrtcLogger.info(`WebRTC service initialized: ${this.isExpoGo ? 'Expo Go mode' : 'Development build mode'}`);
+
+        // 시그널링 서비스 이벤트 리스너 등록
+        this.setupSignalingListeners();
+    }
+
+    // 시그널링 서비스 이벤트 설정
+    private setupSignalingListeners(): void {
+        const signalingListener = (event: string, data?: any) => {
+            switch (event) {
+                case 'webrtc_signaling':
+                    this.handleSignalingMessage(data);
+                    break;
+                case 'connected':
+                    webrtcLogger.info('시그널링 서버 연결됨');
+                    break;
+                case 'disconnected':
+                    webrtcLogger.warn('시그널링 서버 연결 해제됨');
+                    break;
+                case 'failed':
+                    webrtcLogger.error('시그널링 서버 연결 실패');
+                    break;
+            }
+        };
+
+        signalingService.addEventListener(signalingListener);
+
+        // 시그널링 콜백 설정
+        this.setSignalingCallback((message: SignalingMessage) => {
+            signalingService.sendSignalingMessage(message);
+        });
     }
 
     // 이벤트 리스너 등록
@@ -197,10 +228,33 @@ class WebRTCService {
         }, { operation: 'initialize_local_stream' });
     }
 
+    // 시그널링 서버 연결 확인
+    private async ensureSignalingConnection(): Promise<void> {
+        const connectionState = signalingService.getConnectionState();
+
+        if (connectionState === 'disconnected' || connectionState === 'failed') {
+            webrtcLogger.info('시그널링 서버 연결 시도...');
+            await signalingService.connect();
+
+            // 연결 대기 (최대 10초)
+            const startTime = Date.now();
+            while (signalingService.getConnectionState() === 'connecting' && Date.now() - startTime < 10000) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            if (signalingService.getConnectionState() !== 'connected') {
+                throw createNetworkError('시그널링 서버 연결 실패');
+            }
+        }
+    }
+
     // 스트림 시작 (홈캠 모드)
     async startStreaming(cameraId: string, viewerId: string): Promise<WebRTCStream> {
         return withErrorHandling(async () => {
             webrtcLogger.logUserAction('Start streaming', { cameraId, viewerId });
+
+            // 시그널링 서버 연결 확인
+            await this.ensureSignalingConnection();
 
             if (!this.localStream) {
                 await this.initializeLocalStream();
@@ -312,6 +366,12 @@ class WebRTCService {
     async startViewing(cameraId: string, viewerId: string): Promise<WebRTCStream> {
         return withErrorHandling(async () => {
             webrtcLogger.logUserAction('Start viewing', { cameraId, viewerId });
+
+            // 시그널링 서버 연결 확인
+            await this.ensureSignalingConnection();
+
+            // 스트림 참여 요청
+            await signalingService.joinStream(cameraId, viewerId);
 
             // 고유한 스트림 ID 생성 (양방향 매칭 지원)
             const streamId = this.generateStreamId(cameraId, viewerId);
