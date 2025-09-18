@@ -1,18 +1,15 @@
 /**
- * ViewerPinCodeScreen - Enterprise-grade PIN Connection Interface
+ * ViewerPinCodeScreen - PIN 코드 입력 화면
  * 
- * Features:
- * - Hybrid PIN/QR connection support
- * - Real-time connection status monitoring
- * - Enterprise security patterns
- * - Advanced input validation
- * - Biometric authentication integration
- * - Connection history and favorites
- * - Offline mode support
- * - Analytics and error tracking
+ * 핵심 기능:
+ * - 6자리 PIN 코드 입력
+ * - 홈캠과 자동 연결
+ * - 라이브 스트림으로 이동
+ * 
+ * 홈캠이 항상 대기 중이므로 PIN만 맞으면 바로 연결
  */
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import {
     View,
     Text,
@@ -23,122 +20,44 @@ import {
     Animated,
     Dimensions,
     Platform,
-    Vibration,
-    KeyboardAvoidingView,
-    ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
-import * as LocalAuthentication from 'expo-local-authentication';
 
 // Design System
-import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
+import { spacing, radius } from '@/design/tokens';
 
 // Navigation Types
 import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
-// Services and Hooks
-import { connectionService } from '@/features/connection/services/connectionService';
-import { useConnection } from '../../connection/services/useConnection';
-// import { useWebSocket } from '@/features/viewer/hooks/useWebSocket'; // TODO: Implement useWebSocket hook
-
-// Components
-import LoadingState from '@/shared/components/feedback/LoadingState';
-import ErrorState from '@/shared/components/feedback/ErrorState';
-import Card from '../../../shared/components/ui/Card';
-import Button from '../../../shared/components/ui/Button';
-import TextField from '../../../shared/components/ui/TextField';
-import GradientBackground from '@/shared/components/layout/GradientBackground';
-import GlassCard from '@/shared/components/ui/GlassCard';
-import EnhancedTextField from '@/shared/components/ui/EnhancedTextField';
-
 // Utils
-import { logger } from '../../../shared/utils/logger';
-// import { StorageService } from '../../../shared/utils/storage'; // TODO: Create StorageService utility
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Enhanced Color Palette for Enterprise
-const enterpriseColors = {
-    primary: '#2563EB',
-    primaryDark: '#1D4ED8',
-    secondary: '#7C3AED',
-    accent: '#F59E0B',
-    success: '#059669',
-    warning: '#D97706',
-    error: '#DC2626',
-
-    // Neutral palette
-    gray50: '#F9FAFB',
-    gray100: '#F3F4F6',
-    gray200: '#E5E7EB',
-    gray300: '#D1D5DB',
-    gray400: '#9CA3AF',
-    gray500: '#6B7280',
-    gray600: '#4B5563',
-    gray700: '#374151',
-    gray800: '#1F2937',
-    gray900: '#111827',
-
-    // Glass morphism
-    glassBg: 'rgba(255, 255, 255, 0.1)',
-    glassStroke: 'rgba(255, 255, 255, 0.2)',
-
-    // Status colors
-    online: '#10B981',
-    offline: '#EF4444',
-    standby: '#F59E0B',
-    recording: '#DC2626',
-};
-
-// Temporary StorageService implementation
-const StorageService = {
-    async get(key: string, defaultValue: any = null) {
-        try {
-            const value = await AsyncStorage.getItem(key);
-            return value ? JSON.parse(value) : defaultValue;
-        } catch (error) {
-            logger.error('StorageService get error:', error);
-            return defaultValue;
-        }
-    },
-    async set(key: string, value: any) {
-        try {
-            await AsyncStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-            logger.error('StorageService set error:', error);
-        }
-    }
-};
+import { logger } from '@/shared/utils/logger';
 
 // Constants
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PIN_LENGTH = 6;
-const CONNECTION_TIMEOUT = 30000; // 30초 타임아웃
+
+// 간결한 색상 팔레트
+const colors = {
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
+};
 
 // Types
 interface PinInputState {
     value: string;
-    isValid: boolean;
     showError: boolean;
     errorMessage: string;
-}
-
-interface ConnectionAttempt {
-    pinCode: string;
-    timestamp: Date;
-    success: boolean;
-    errorCode?: string;
-}
-
-interface FavoriteConnection {
-    id: string;
-    pinCode: string;
-    cameraName: string;
-    lastConnected: Date;
-    connectionCount: number;
 }
 
 type ViewerPinCodeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ViewerPinCode'>;
@@ -151,57 +70,15 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
     // State Management
     const [pinInput, setPinInput] = useState<PinInputState>({
         value: '',
-        isValid: false,
         showError: false,
         errorMessage: ''
     });
-
-    const [connectionMode, setConnectionMode] = useState<'pin' | 'qr'>('pin');
     const [isConnecting, setIsConnecting] = useState(false);
-    const [connectionAttempts, setConnectionAttempts] = useState<ConnectionAttempt[]>([]);
-    const [favoriteConnections, setFavoriteConnections] = useState<FavoriteConnection[]>([]);
-    const [biometricAvailable, setBiometricAvailable] = useState(false);
-    const [showFavorites, setShowFavorites] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
 
     // Animation Values
-    const [fadeAnim] = useState(new Animated.Value(0));
     const [shakeAnim] = useState(new Animated.Value(0));
     const [pinBoxAnims] = useState(Array.from({ length: PIN_LENGTH }, () => new Animated.Value(1)));
-
-    // Refs
-    const connectionTimeoutRef = useRef<NodeJS.Timeout>();
-
-    // Hooks
-    const { isConnected: wsConnected } = useWebSocket();
-    const {
-        connectWithPin,
-        connectWithQR,
-        error: connectionError,
-        clearError
-    } = useConnection();
-
-    // Effects
-    useEffect(() => {
-        // Entrance animation
-        Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-        }).start();
-
-        // Check biometric availability
-        checkBiometricAvailability();
-
-        // Load favorites and history
-        loadConnectionHistory();
-        loadFavoriteConnections();
-
-        return () => {
-            if (connectionTimeoutRef.current) {
-                clearTimeout(connectionTimeoutRef.current);
-            }
-        };
-    }, []);
 
     // PIN input animation
     useEffect(() => {
@@ -223,68 +100,19 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
                     ])
                 )
             ).start();
+
+            // Auto-connect when PIN is complete
+            setTimeout(() => handleConnect(), 300);
         }
     }, [pinInput.value.length]);
-
-    // Biometric and storage functions
-    const checkBiometricAvailability = useCallback(async () => {
-        try {
-            const isAvailable = await LocalAuthentication.hasHardwareAsync();
-            const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-            setBiometricAvailable(isAvailable && isEnrolled);
-        } catch (error) {
-            logger.error('[ViewerPinCode] Biometric check failed:', error);
-        }
-    }, []);
-
-    const loadConnectionHistory = useCallback(async () => {
-        try {
-            const history = await StorageService.get('connectionHistory', []);
-            setConnectionAttempts(history.slice(0, 10)); // Keep last 10 attempts
-        } catch (error) {
-            logger.error('[ViewerPinCode] Failed to load connection history:', error);
-        }
-    }, []);
-
-    const loadFavoriteConnections = useCallback(async () => {
-        try {
-            const favorites = await StorageService.get('favoriteConnections', []);
-            setFavoriteConnections(favorites);
-        } catch (error) {
-            logger.error('[ViewerPinCode] Failed to load favorite connections:', error);
-        }
-    }, []);
-
-    const saveConnectionAttempt = useCallback(async (attempt: ConnectionAttempt) => {
-        try {
-            const updatedHistory = [attempt, ...connectionAttempts].slice(0, 10);
-            setConnectionAttempts(updatedHistory);
-            await StorageService.set('connectionHistory', updatedHistory);
-        } catch (error) {
-            logger.error('[ViewerPinCode] Failed to save connection attempt:', error);
-        }
-    }, [connectionAttempts]);
-
-    const saveFavoriteConnection = useCallback(async (connection: FavoriteConnection) => {
-        try {
-            const updatedFavorites = [connection, ...favoriteConnections.filter(f => f.pinCode !== connection.pinCode)];
-            setFavoriteConnections(updatedFavorites);
-            await StorageService.set('favoriteConnections', updatedFavorites);
-        } catch (error) {
-            logger.error('[ViewerPinCode] Failed to save favorite connection:', error);
-        }
-    }, [favoriteConnections]);
 
     // Input handling functions
     const handlePinInput = useCallback((digit: string) => {
         if (pinInput.value.length >= PIN_LENGTH) return;
 
         const newValue = pinInput.value + digit;
-        const isValid = /^\d{6}$/.test(newValue);
-
         setPinInput({
             value: newValue,
-            isValid: isValid,
             showError: false,
             errorMessage: ''
         });
@@ -292,11 +120,6 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
         // Haptic feedback
         if (Platform.OS === 'ios' && Haptics) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-
-        // Auto-connect when PIN is complete
-        if (newValue.length === PIN_LENGTH) {
-            setTimeout(() => handleConnect(newValue), 200);
         }
     }, [pinInput.value]);
 
@@ -306,7 +129,6 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
         const newValue = pinInput.value.slice(0, -1);
         setPinInput({
             value: newValue,
-            isValid: false,
             showError: false,
             errorMessage: ''
         });
@@ -319,15 +141,14 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
     const clearPinInput = useCallback(() => {
         setPinInput({
             value: '',
-            isValid: false,
             showError: false,
             errorMessage: ''
         });
     }, []);
 
     // Connection handling
-    const handleConnect = useCallback(async (pinCode?: string) => {
-        const pin = pinCode || pinInput.value;
+    const handleConnect = useCallback(async () => {
+        const pin = pinInput.value;
 
         if (!pin || pin.length !== PIN_LENGTH) {
             showPinError('PIN 코드는 6자리 숫자여야 합니다.');
@@ -335,78 +156,82 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
         }
 
         setIsConnecting(true);
-        const attemptStartTime = new Date();
 
         try {
             logger.info('[ViewerPinCode] Attempting connection with PIN:', pin);
 
-            // Set connection timeout
-            connectionTimeoutRef.current = setTimeout(() => {
-                setIsConnecting(false);
-                showPinError('연결 시간이 초과되었습니다.');
-            }, CONNECTION_TIMEOUT);
+            // TODO: 실제 홈캠 등록 로직 구현
+            // const result = await api.post('/cameras/register-with-code', { code: pin, type: 'pin' });
 
-            const result = await connectWithPin(pin);
+            // Mock 홈캠 등록 - 임시로 2초 후 성공
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
-            if (connectionTimeoutRef.current) {
-                clearTimeout(connectionTimeoutRef.current);
-            }
+            // 임시 등록 성공 처리
+            const mockResult = {
+                camera: {
+                    id: Date.now(),
+                    name: `홈캠 ${pin}`,
+                    device_id: `MIMO_${pin}_${Date.now()}`,
+                    location: '홈',
+                    status: 'online'
+                },
+                success: true
+            };
 
-            if (result) {
+            if (mockResult.success) {
                 // Success handling
                 if (Platform.OS === 'ios' && Haptics) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 }
 
-                // Save to history and favorites
-                const attempt: ConnectionAttempt = {
-                    pinCode: pin,
-                    timestamp: attemptStartTime,
-                    success: true
-                };
-                await saveConnectionAttempt(attempt);
+                // 성공 상태 표시
+                setIsSuccess(true);
 
-                const favorite: FavoriteConnection = {
-                    id: result.connectionId,
-                    pinCode: pin,
-                    cameraName: result.cameraName,
-                    lastConnected: new Date(),
-                    connectionCount: 1
-                };
-                await saveFavoriteConnection(favorite);
-
-                // Navigate to live stream
-                navigation.navigate('ViewerLiveStream', {
-                    connectionId: result.connectionId,
-                    cameraName: result.cameraName,
-                    connectionType: 'pin'
-                });
+                // 1.5초 후 성공 메시지와 함께 대시보드로 이동
+                setTimeout(() => {
+                    Alert.alert(
+                        '등록 성공!',
+                        `홈캠 "${mockResult.camera.name}"이 성공적으로 등록되었습니다.\n\n지금 바로 라이브 스트리밍을 시청하시겠습니까?`,
+                        [
+                            {
+                                text: '나중에',
+                                style: 'cancel',
+                                onPress: () => {
+                                    navigation.replace('ViewerDashboard');
+                                }
+                            },
+                            {
+                                text: '지금 시청하기',
+                                onPress: () => {
+                                    navigation.replace('ViewerDashboard');
+                                    // 잠시 후 라이브 스트림으로 이동
+                                    setTimeout(() => {
+                                        navigation.navigate('LiveStream', {
+                                            cameraId: mockResult.camera.device_id,
+                                            cameraName: mockResult.camera.name,
+                                            ipAddress: '192.168.1.100',
+                                            quality: '1080p'
+                                        });
+                                    }, 500);
+                                }
+                            }
+                        ]
+                    );
+                }, 1500);
             }
         } catch (error: any) {
             logger.error('[ViewerPinCode] Connection failed:', error);
-
-            if (connectionTimeoutRef.current) {
-                clearTimeout(connectionTimeoutRef.current);
-            }
 
             // Error handling
             if (Platform.OS === 'ios' && Haptics) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             }
 
-            const attempt: ConnectionAttempt = {
-                pinCode: pin,
-                timestamp: attemptStartTime,
-                success: false,
-                errorCode: error.code || 'UNKNOWN_ERROR'
-            };
-            await saveConnectionAttempt(attempt);
-
-            showPinError(error.message || '연결에 실패했습니다.');
+            showPinError(error.message || '연결에 실패했습니다. PIN 코드를 다시 확인해주세요.');
         } finally {
             setIsConnecting(false);
         }
-    }, [pinInput.value, connectWithPin, navigation, saveConnectionAttempt, saveFavoriteConnection]);
+    }, [pinInput.value, navigation]);
 
     const showPinError = useCallback((message: string) => {
         setPinInput(prev => ({
@@ -433,326 +258,190 @@ const ViewerPinCodeScreen = memo(({ navigation }: ViewerPinCodeScreenProps) => {
         }, 3000);
     }, []);
 
-    const handleBiometricAuth = useCallback(async () => {
-        try {
-            const result = await LocalAuthentication.authenticateAsync({
-                promptMessage: '생체 인증으로 연결하기',
-                fallbackLabel: 'PIN 사용',
-                cancelLabel: '취소'
-            });
-
-            if (result.success) {
-                // Load last successful PIN or favorite
-                if (favoriteConnections.length > 0) {
-                    const lastFavorite = favoriteConnections[0];
-                    await handleConnect(lastFavorite.pinCode);
-                }
-            }
-        } catch (error) {
-            logger.error('[ViewerPinCode] Biometric auth failed:', error);
-        }
-    }, [favoriteConnections, handleConnect]);
-
-    const handleFavoriteSelect = useCallback(async (favorite: FavoriteConnection) => {
-        setPinInput({
-            value: favorite.pinCode,
-            isValid: true,
-            showError: false,
-            errorMessage: ''
-        });
-        await handleConnect(favorite.pinCode);
-    }, [handleConnect]);
-
-    // Render functions
-    const renderHeader = useCallback(() => (
-        <View style={styles.header}>
-            <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => navigation.goBack()}
-                activeOpacity={0.7}
-            >
-                <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-
-            <View style={styles.headerContent}>
-                <Text style={styles.headerTitle}>카메라 연결</Text>
-                <View style={styles.connectionStatus}>
-                    <View style={[
-                        styles.statusDot,
-                        { backgroundColor: wsConnected ? colors.success : colors.error }
-                    ]} />
-                    <Text style={styles.statusText}>
-                        {wsConnected ? '서버 연결됨' : '오프라인'}
-                    </Text>
-                </View>
-            </View>
-
-            <TouchableOpacity
-                style={styles.modeButton}
-                onPress={() => setConnectionMode(connectionMode === 'pin' ? 'qr' : 'pin')}
-                activeOpacity={0.7}
-            >
-                <Ionicons
-                    name={connectionMode === 'pin' ? 'qr-code-outline' : 'keypad-outline'}
-                    size={24}
-                    color={colors.primary}
-                />
-            </TouchableOpacity>
-        </View>
-    ), [navigation, wsConnected, connectionMode]);
-
-    const renderConnectionModeSelector = useCallback(() => (
-        <GlassCard variant="morphism" style={styles.modeSelector}>
-            <TouchableOpacity
-                style={[
-                    styles.modeOption,
-                    connectionMode === 'pin' && styles.modeOptionActive
-                ]}
-                onPress={() => setConnectionMode('pin')}
-                activeOpacity={0.8}
-            >
-                <Ionicons
-                    name="keypad"
-                    size={24}
-                    color={connectionMode === 'pin' ? colors.textOnPrimary : colors.textSecondary}
-                />
-                <Text style={[
-                    styles.modeOptionText,
-                    connectionMode === 'pin' && styles.modeOptionTextActive
-                ]}>
-                    PIN 코드
-                </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-                style={[
-                    styles.modeOption,
-                    connectionMode === 'qr' && styles.modeOptionActive
-                ]}
-                onPress={() => setConnectionMode('qr')}
-                activeOpacity={0.8}
-            >
-                <Ionicons
-                    name="qr-code"
-                    size={24}
-                    color={connectionMode === 'qr' ? colors.textOnPrimary : colors.textSecondary}
-                />
-                <Text style={[
-                    styles.modeOptionText,
-                    connectionMode === 'qr' && styles.modeOptionTextActive
-                ]}>
-                    QR 코드
-                </Text>
-            </TouchableOpacity>
-        </GlassCard>
-    ), [connectionMode]);
-
-    const renderPinInput = useCallback(() => (
-        <GlassCard variant="morphism" style={styles.pinInputWrapper}>
-            <Animated.View
-                style={[
-                    styles.pinInputContainer,
-                    { transform: [{ translateX: shakeAnim }] }
-                ]}
-            >
-                <Text style={styles.pinInputLabel}>PIN 코드 입력</Text>
-                <Text style={styles.pinInputSubtitle}>카메라에서 생성된 6자리 숫자를 입력하세요</Text>
-
-                <View style={styles.pinDisplay}>
-                    {Array.from({ length: PIN_LENGTH }, (_, index) => (
-                        <Animated.View
-                            key={index}
-                            style={[
-                                styles.pinBox,
-                                {
-                                    backgroundColor: index < pinInput.value.length
-                                        ? colors.primary
-                                        : colors.surface,
-                                    borderColor: pinInput.showError
-                                        ? colors.error
-                                        : colors.divider,
-                                    transform: [{ scale: pinBoxAnims[index] }]
-                                }
-                            ]}
-                        >
-                            <Text style={[
-                                styles.pinBoxText,
-                                { color: index < pinInput.value.length ? colors.textOnPrimary : colors.textSecondary }
-                            ]}>
-                                {index < pinInput.value.length ? '●' : '○'}
-                            </Text>
-                        </Animated.View>
-                    ))}
-                </View>
-
-                {pinInput.showError && (
-                    <Animated.View style={styles.errorContainer}>
-                        <Ionicons name="alert-circle" size={16} color={colors.error} />
-                        <Text style={styles.errorText}>{pinInput.errorMessage}</Text>
-                    </Animated.View>
-                )}
-            </Animated.View>
-        </GlassCard>
-    ), [pinInput, shakeAnim, pinBoxAnims]);
-
-    const renderNumericKeypad = useCallback(() => (
-        <View style={styles.keypadContainer}>
-            <View style={styles.keypadGrid}>
-                {Array.from({ length: 9 }, (_, i) => (
-                    <TouchableOpacity
-                        key={i + 1}
-                        style={styles.keypadButton}
-                        onPress={() => handlePinInput((i + 1).toString())}
-                        activeOpacity={0.7}
-                        disabled={isConnecting}
-                    >
-                        <Text style={styles.keypadButtonText}>{i + 1}</Text>
-                    </TouchableOpacity>
-                ))}
-
-                {/* Biometric button */}
-                {biometricAvailable && (
-                    <TouchableOpacity
-                        style={styles.keypadButton}
-                        onPress={handleBiometricAuth}
-                        activeOpacity={0.7}
-                        disabled={isConnecting}
-                    >
-                        <Ionicons name="finger-print" size={24} color={colors.primary} />
-                    </TouchableOpacity>
-                )}
-
-                {/* Zero button */}
-                <TouchableOpacity
-                    style={styles.keypadButton}
-                    onPress={() => handlePinInput('0')}
-                    activeOpacity={0.7}
-                    disabled={isConnecting}
-                >
-                    <Text style={styles.keypadButtonText}>0</Text>
-                </TouchableOpacity>
-
-                {/* Delete button */}
-                <TouchableOpacity
-                    style={styles.keypadButton}
-                    onPress={handlePinDelete}
-                    activeOpacity={0.7}
-                    disabled={isConnecting}
-                >
-                    <Ionicons name="backspace" size={24} color={enterpriseColors.gray600} />
-                </TouchableOpacity>
-            </View>
-        </View>
-    ), [isConnecting, biometricAvailable, handlePinInput, handlePinDelete, handleBiometricAuth]);
-
-    const renderFavoriteConnections = useCallback(() => (
-        favoriteConnections.length > 0 && (
-            <View style={styles.favoritesContainer}>
-                <TouchableOpacity
-                    style={styles.favoritesHeader}
-                    onPress={() => setShowFavorites(!showFavorites)}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.favoritesTitle}>즐겨찾기 연결</Text>
-                    <Ionicons
-                        name={showFavorites ? 'chevron-up' : 'chevron-down'}
-                        size={20}
-                        color={enterpriseColors.gray600}
-                    />
-                </TouchableOpacity>
-
-                {showFavorites && (
-                    <View style={styles.favoritesList}>
-                        {favoriteConnections.slice(0, 3).map((favorite) => (
-                            <TouchableOpacity
-                                key={favorite.id}
-                                style={styles.favoriteItem}
-                                onPress={() => handleFavoriteSelect(favorite)}
-                                activeOpacity={0.8}
-                            >
-                                <View style={styles.favoriteInfo}>
-                                    <Text style={styles.favoriteName}>{favorite.cameraName}</Text>
-                                    <Text style={styles.favoritePin}>PIN: {favorite.pinCode}</Text>
-                                    <Text style={styles.favoriteLastConnected}>
-                                        마지막 연결: {favorite.lastConnected.toLocaleDateString()}
-                                    </Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                )}
-            </View>
-        )
-    ), [favoriteConnections, showFavorites, handleFavoriteSelect]);
-
-    if (connectionError) {
+    // Loading state
+    if (isConnecting) {
         return (
-            <ErrorState
-                message={connectionError}
-                onRetry={clearError}
-                onBack={() => navigation.goBack()}
-            />
+            <View style={styles.container}>
+                <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+                <SafeAreaView style={styles.safeArea}>
+                    <View style={styles.loadingContainer}>
+                        <Animated.View style={styles.loadingIcon}>
+                            <Ionicons
+                                name="videocam"
+                                size={64}
+                                color={colors.primary}
+                            />
+                        </Animated.View>
+                        <Text style={styles.loadingTitle}>홈캠 등록 중...</Text>
+                        <Text style={styles.loadingSubtitle}>PIN: {pinInput.value}</Text>
+
+                        <TouchableOpacity
+                            style={styles.cancelButton}
+                            onPress={() => {
+                                setIsConnecting(false);
+                                clearPinInput();
+                            }}
+                        >
+                            <Text style={styles.cancelButtonText}>취소</Text>
+                        </TouchableOpacity>
+                    </View>
+                </SafeAreaView>
+            </View>
         );
     }
 
-    if (isConnecting) {
+    // Success state
+    if (isSuccess) {
         return (
-            <LoadingState
-                message="카메라에 연결 중..."
-                onCancel={() => {
-                    setIsConnecting(false);
-                    if (connectionTimeoutRef.current) {
-                        clearTimeout(connectionTimeoutRef.current);
-                    }
-                }}
-            />
+            <View style={styles.container}>
+                <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+                <SafeAreaView style={styles.safeArea}>
+                    <View style={styles.successContainer}>
+                        <Animated.View style={styles.successIcon}>
+                            <Ionicons
+                                name="checkmark-circle"
+                                size={80}
+                                color={colors.success}
+                            />
+                        </Animated.View>
+                        <Text style={styles.successTitle}>등록 성공!</Text>
+                        <Text style={styles.successSubtitle}>
+                            홈캠이 성공적으로 등록되었습니다{'\n'}잠시 후 홈캠 목록으로 이동합니다
+                        </Text>
+
+                        {/* PIN 번호 표시 */}
+                        <View style={styles.successPinDisplay}>
+                            <Text style={styles.successPinLabel}>등록된 PIN</Text>
+                            <Text style={styles.successPinNumber}>{pinInput.value}</Text>
+                        </View>
+                    </View>
+                </SafeAreaView>
+            </View>
         );
     }
 
     return (
-        <GradientBackground>
+        <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-            <SafeAreaView style={styles.container}>
-                {renderHeader()}
-
-                <KeyboardAvoidingView
-                    style={styles.content}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                >
-                    <ScrollView
-                        style={styles.scrollView}
-                        contentContainerStyle={styles.scrollContent}
-                        showsVerticalScrollIndicator={false}
+            <SafeAreaView style={styles.safeArea}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => navigation.goBack()}
                     >
-                        <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
-                            {renderConnectionModeSelector()}
+                        <Ionicons name="arrow-back" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>PIN 코드 입력</Text>
+                    <TouchableOpacity
+                        style={styles.clearButton}
+                        onPress={clearPinInput}
+                        disabled={pinInput.value.length === 0}
+                    >
+                        <Text style={[
+                            styles.clearButtonText,
+                            { opacity: pinInput.value.length === 0 ? 0.3 : 1 }
+                        ]}>
+                            초기화
+                        </Text>
+                    </TouchableOpacity>
+                </View>
 
-                            {connectionMode === 'pin' ? (
-                                <>
-                                    {renderPinInput()}
-                                    {renderNumericKeypad()}
-                                    {renderFavoriteConnections()}
-                                </>
-                            ) : (
-                                <GlassCard variant="morphism" style={styles.qrContainer}>
-                                    <Ionicons name="qr-code-outline" size={120} color={colors.textSecondary} />
-                                    <Text style={styles.qrTitle}>QR 코드 스캔</Text>
-                                    <Text style={styles.qrSubtitle}>카메라에 표시된 QR 코드를 스캔하세요</Text>
-                                    <Button
-                                        title="QR 스캐너 열기"
-                                        onPress={() => {
-                                            Alert.alert('QR 스캐너', 'QR 스캐너 기능을 구현해주세요.');
-                                        }}
-                                        style={styles.qrButton}
-                                    />
-                                </GlassCard>
-                            )}
-                        </Animated.View>
-                    </ScrollView>
-                </KeyboardAvoidingView>
+                {/* PIN Input Display */}
+                <View style={styles.pinContainer}>
+                    <Text style={styles.pinLabel}>홈캠 연결 코드</Text>
+                    <Text style={styles.pinSubtitle}>홈캠에서 생성된 6자리 PIN 코드를 입력하세요</Text>
+
+                    <Animated.View
+                        style={[
+                            styles.pinDisplay,
+                            { transform: [{ translateX: shakeAnim }] }
+                        ]}
+                    >
+                        {Array.from({ length: PIN_LENGTH }, (_, index) => (
+                            <Animated.View
+                                key={index}
+                                style={[
+                                    styles.pinBox,
+                                    {
+                                        backgroundColor: index < pinInput.value.length
+                                            ? colors.primary
+                                            : colors.surface,
+                                        borderColor: pinInput.showError
+                                            ? colors.error
+                                            : (index < pinInput.value.length ? colors.primary : colors.border),
+                                        transform: [{ scale: pinBoxAnims[index] }]
+                                    }
+                                ]}
+                            >
+                                <Text style={[
+                                    styles.pinBoxText,
+                                    {
+                                        color: index < pinInput.value.length
+                                            ? 'white'
+                                            : colors.textSecondary
+                                    }
+                                ]}>
+                                    {index < pinInput.value.length ? '●' : '○'}
+                                </Text>
+                            </Animated.View>
+                        ))}
+                    </Animated.View>
+
+                    {pinInput.showError && (
+                        <View style={styles.errorContainer}>
+                            <Ionicons name="alert-circle" size={16} color={colors.error} />
+                            <Text style={styles.errorText}>{pinInput.errorMessage}</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Numeric Keypad */}
+                <View style={styles.keypadContainer}>
+                    <View style={styles.keypadGrid}>
+                        {/* Numbers 1-9 */}
+                        {Array.from({ length: 9 }, (_, i) => (
+                            <TouchableOpacity
+                                key={i + 1}
+                                style={styles.keypadButton}
+                                onPress={() => handlePinInput((i + 1).toString())}
+                                activeOpacity={0.7}
+                                disabled={isConnecting || pinInput.value.length >= PIN_LENGTH}
+                            >
+                                <Text style={styles.keypadButtonText}>{i + 1}</Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        {/* Empty space */}
+                        <View style={styles.keypadButton} />
+
+                        {/* Zero button */}
+                        <TouchableOpacity
+                            style={styles.keypadButton}
+                            onPress={() => handlePinInput('0')}
+                            activeOpacity={0.7}
+                            disabled={isConnecting || pinInput.value.length >= PIN_LENGTH}
+                        >
+                            <Text style={styles.keypadButtonText}>0</Text>
+                        </TouchableOpacity>
+
+                        {/* Delete button */}
+                        <TouchableOpacity
+                            style={styles.keypadButton}
+                            onPress={handlePinDelete}
+                            activeOpacity={0.7}
+                            disabled={isConnecting || pinInput.value.length === 0}
+                        >
+                            <Ionicons
+                                name="backspace"
+                                size={24}
+                                color={pinInput.value.length === 0 ? colors.border : colors.text}
+                            />
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </SafeAreaView>
-        </GradientBackground>
+        </View>
     );
 });
 
@@ -760,121 +449,58 @@ ViewerPinCodeScreen.displayName = 'ViewerPinCodeScreen';
 
 export default ViewerPinCodeScreen;
 
-// Enhanced MIMO-branded Styles
+// 간결한 스타일
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'transparent',
+        backgroundColor: colors.background,
     },
-    content: {
+    safeArea: {
         flex: 1,
     },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        flexGrow: 1,
-    },
-    mainContent: {
-        flex: 1,
-        paddingHorizontal: spacing.lg,
-    },
-
-    // Header
     header: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
         backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: colors.divider,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: spacing.sm,
         borderRadius: radius.md,
-        backgroundColor: colors.surfaceAlt,
-    },
-    headerContent: {
-        flex: 1,
-        marginLeft: spacing.md,
+        backgroundColor: colors.background,
     },
     headerTitle: {
-        ...typography.h3,
-        fontWeight: '700',
+        fontSize: 18,
+        fontWeight: '600',
         color: colors.text,
     },
-    connectionStatus: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: spacing.xs,
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: spacing.xs,
-    },
-    statusText: {
-        ...typography.caption,
-        color: colors.textSecondary,
-        fontWeight: '500',
-    },
-    modeButton: {
+    clearButton: {
         padding: spacing.sm,
-        borderRadius: radius.md,
-        backgroundColor: colors.surfaceAlt,
     },
-
-    // Mode Selector
-    modeSelector: {
-        flexDirection: 'row',
-        borderRadius: radius.lg,
-        padding: spacing.xs,
-        marginVertical: spacing.xl,
-    },
-    modeOption: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        borderRadius: radius.md,
-    },
-    modeOptionActive: {
-        backgroundColor: colors.primary,
-    },
-    modeOptionText: {
-        ...typography.button,
-        color: colors.textSecondary,
-        marginLeft: spacing.sm,
-        fontWeight: '600',
-    },
-    modeOptionTextActive: {
-        color: colors.textOnPrimary,
+    clearButtonText: {
+        fontSize: 16,
+        color: colors.primary,
+        fontWeight: '500',
     },
 
     // PIN Input
-    pinInputWrapper: {
-        marginBottom: spacing.xl,
-    },
-    pinInputContainer: {
+    pinContainer: {
         alignItems: 'center',
+        padding: spacing.lg,
+        marginTop: spacing.xl,
     },
-    pinInputLabel: {
-        ...typography.h4,
+    pinLabel: {
+        fontSize: 20,
         fontWeight: '700',
         color: colors.text,
         marginBottom: spacing.sm,
     },
-    pinInputSubtitle: {
-        ...typography.body,
+    pinSubtitle: {
+        fontSize: 16,
         color: colors.textSecondary,
         textAlign: 'center',
         marginBottom: spacing.xl,
@@ -884,6 +510,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         marginBottom: spacing.lg,
+        gap: spacing.sm,
     },
     pinBox: {
         width: 50,
@@ -892,7 +519,6 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         justifyContent: 'center',
         alignItems: 'center',
-        marginHorizontal: spacing.sm,
         elevation: 1,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
@@ -913,7 +539,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.md,
     },
     errorText: {
-        ...typography.caption,
+        fontSize: 14,
         color: colors.error,
         marginLeft: spacing.xs,
         fontWeight: '500',
@@ -921,21 +547,23 @@ const styles = StyleSheet.create({
 
     // Keypad
     keypadContainer: {
-        marginTop: spacing.lg,
+        flex: 1,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.lg,
     },
     keypadGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'center',
+        gap: spacing.md,
     },
     keypadButton: {
-        width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.lg * 2) / 3,
+        width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md * 4) / 3,
         height: 70,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: colors.surface,
         borderRadius: radius.lg,
-        margin: spacing.sm,
         elevation: 2,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -948,80 +576,89 @@ const styles = StyleSheet.create({
         color: colors.text,
     },
 
-    // Favorites
-    favoritesContainer: {
-        marginTop: spacing.xl,
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
-        padding: spacing.lg,
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-    },
-    favoritesHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    favoritesTitle: {
-        ...typography.h5,
-        fontWeight: '600',
-        color: colors.text,
-    },
-    favoritesList: {
-        marginTop: spacing.md,
-    },
-    favoriteItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.divider,
-    },
-    favoriteInfo: {
-        flex: 1,
-    },
-    favoriteName: {
-        ...typography.button,
-        fontWeight: '600',
-        color: colors.text,
-        marginBottom: spacing.xs,
-    },
-    favoritePin: {
-        ...typography.caption,
-        color: colors.textSecondary,
-        marginBottom: spacing.xs,
-    },
-    favoriteLastConnected: {
-        ...typography.caption,
-        color: enterpriseColors.gray500,
-    },
-
-    // QR Mode
-    qrContainer: {
+    // Loading State
+    loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: spacing.xxl,
+        padding: spacing.lg,
     },
-    qrTitle: {
-        ...typography.h3,
+    loadingIcon: {
+        marginBottom: spacing.xl,
+    },
+    loadingTitle: {
+        fontSize: 20,
         fontWeight: '700',
         color: colors.text,
-        marginTop: spacing.xl,
         marginBottom: spacing.sm,
     },
-    qrSubtitle: {
-        ...typography.body,
+    loadingSubtitle: {
+        fontSize: 16,
         color: colors.textSecondary,
-        textAlign: 'center',
         marginBottom: spacing.xl,
-        lineHeight: 22,
     },
-    qrButton: {
+    cancelButton: {
+        backgroundColor: colors.surface,
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    cancelButtonText: {
+        fontSize: 16,
+        color: colors.text,
+        fontWeight: '500',
+    },
+
+    // Success State
+    successContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing.xl,
+    },
+    successIcon: {
+        marginBottom: spacing.xl,
+    },
+    successTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: colors.success,
+        marginBottom: spacing.md,
+        textAlign: 'center',
+    },
+    successSubtitle: {
+        fontSize: 16,
+        color: colors.textSecondary,
+        marginBottom: spacing.xl,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    successPinDisplay: {
+        backgroundColor: colors.surface,
+        paddingVertical: spacing.lg,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radius.lg,
+        borderWidth: 2,
+        borderColor: colors.success,
+        alignItems: 'center',
+        elevation: 2,
+        shadowColor: colors.success,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    successPinLabel: {
+        fontSize: 14,
+        color: colors.textSecondary,
+        marginBottom: spacing.sm,
+        fontWeight: '500',
+    },
+    successPinNumber: {
+        fontSize: 28,
+        fontWeight: '700',
+        color: colors.success,
+        letterSpacing: 4,
     },
 });

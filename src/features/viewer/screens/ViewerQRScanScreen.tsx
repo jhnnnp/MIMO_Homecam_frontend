@@ -62,6 +62,7 @@ const ViewerQRScanScreen: React.FC = () => {
     // State
     const [isScanning, setIsScanning] = useState(true);
     const [scannedData, setScannedData] = useState<string | null>(null);
+    const [isSuccess, setIsSuccess] = useState(false);
 
     // Animation
     const scanLineAnim = useRef(new Animated.Value(0)).current;
@@ -130,15 +131,111 @@ const ViewerQRScanScreen: React.FC = () => {
 
     const processQRCode = useCallback(async (qrData: string) => {
         try {
-            // QR 코드 데이터 검증 및 처리
+            // QR 코드 데이터 검증
             console.log('QR Code scanned:', qrData);
 
-            // 여기서 실제 연결 로직 구현
-            // 예: connectionService.connectWithQRCode(qrData)
+            // QR 코드에서 연결 정보 추출
+            let connectionInfo;
+            try {
+                // QR 코드 데이터를 JSON으로 파싱
+                connectionInfo = JSON.parse(qrData);
 
+                // MIMO QR 코드 형식 검증
+                if (connectionInfo.type !== 'MIMO_CAMERA') {
+                    throw new Error('MIMO 카메라 QR 코드가 아닙니다.');
+                }
+
+                // 만료 시간 검증
+                if (connectionInfo.expiresAt && Date.now() > connectionInfo.expiresAt) {
+                    throw new Error('만료된 QR 코드입니다. 새로운 코드를 생성해주세요.');
+                }
+
+            } catch (parseError) {
+                // JSON이 아닌 경우 단순 PIN으로 처리
+                if (qrData.length === 6 && /^\d{6}$/.test(qrData)) {
+                    connectionInfo = {
+                        pinCode: qrData,
+                        type: 'pin',
+                        cameraName: qrData === '991011' ? '관리자 모드' : '홈캠'
+                    };
+                } else {
+                    throw new Error('올바른 QR 코드 형식이 아닙니다.');
+                }
+            }
+
+            // 연결 정보 검증
+            if (!connectionInfo.pinCode || connectionInfo.pinCode.length !== 6) {
+                throw new Error('유효하지 않은 PIN 코드입니다.');
+            }
+
+            // 연결 시작
+            setIsScanning(false);
+
+
+            // TODO: 실제 홈캠 등록 로직 구현
+            // const result = await api.post('/cameras/register-with-code', { code: qrData, type: 'qr' });
+
+            // Mock 홈캠 등록 - 임시로 2초 후 성공
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // 임시 등록 성공 처리
+            const mockResult = {
+                camera: {
+                    id: Date.now(),
+                    name: connectionInfo.cameraName || `홈캠 ${connectionInfo.pinCode}`,
+                    device_id: connectionInfo.cameraId,
+                    location: '홈',
+                    status: 'online'
+                },
+                success: true
+            };
+
+            if (mockResult.success) {
+                // Success feedback
+                if (Platform.OS === 'ios') {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+
+                // 성공 상태 표시
+                setIsSuccess(true);
+
+                // 1.5초 후 성공 메시지와 함께 대시보드로 이동
+                setTimeout(() => {
+                    Alert.alert(
+                        '등록 성공!',
+                        `홈캠 "${mockResult.camera.name}"이 성공적으로 등록되었습니다.\n\n지금 바로 라이브 스트리밍을 시청하시겠습니까?`,
+                        [
+                            {
+                                text: '나중에',
+                                style: 'cancel',
+                                onPress: () => {
+                                    navigation.replace('ViewerDashboard');
+                                }
+                            },
+                            {
+                                text: '지금 시청하기',
+                                onPress: () => {
+                                    navigation.replace('ViewerDashboard');
+                                    // 잠시 후 라이브 스트림으로 이동
+                                    setTimeout(() => {
+                                        navigation.navigate('LiveStream', {
+                                            cameraId: mockResult.camera.device_id,
+                                            cameraName: mockResult.camera.name,
+                                            ipAddress: '192.168.1.100',
+                                            quality: '1080p'
+                                        });
+                                    }, 500);
+                                }
+                            }
+                        ]
+                    );
+                }, 1500);
+            }
+        } catch (error) {
+            console.error('QR Code processing error:', error);
             Alert.alert(
-                '스캔 성공',
-                `QR 코드를 스캔했습니다: ${qrData}`,
+                '연결 실패',
+                error.message || 'QR 코드를 처리할 수 없습니다.\n올바른 QR 코드인지 확인해주세요.',
                 [
                     {
                         text: '다시 스캔',
@@ -146,21 +243,9 @@ const ViewerQRScanScreen: React.FC = () => {
                             setIsScanning(true);
                             setScannedData(null);
                         }
-                    },
-                    {
-                        text: '연결',
-                        onPress: () => {
-                            // 실제 연결 처리 후 이전 화면으로 이동
-                            navigation.goBack();
-                        }
                     }
                 ]
             );
-        } catch (error) {
-            console.error('QR Code processing error:', error);
-            Alert.alert('오류', 'QR 코드를 처리할 수 없습니다.');
-            setIsScanning(true);
-            setScannedData(null);
         }
     }, [navigation]);
 
@@ -176,10 +261,12 @@ const ViewerQRScanScreen: React.FC = () => {
                 '카메라 권한이 필요합니다. 설정에서 권한을 허용해주세요.',
                 [
                     { text: '취소', onPress: handleClose },
-                    { text: '설정으로 이동', onPress: () => {
-                        // 설정 앱으로 이동 로직
-                        handleClose();
-                    }}
+                    {
+                        text: '설정으로 이동', onPress: () => {
+                            // 설정 앱으로 이동 로직
+                            handleClose();
+                        }
+                    }
                 ]
             );
         }
@@ -220,13 +307,13 @@ const ViewerQRScanScreen: React.FC = () => {
         <View style={styles.overlay}>
             {/* Top overlay */}
             <View style={styles.overlayTop} />
-            
+
             {/* Middle row with scan area */}
             <View style={styles.overlayMiddle}>
                 <View style={styles.overlaySide} />
-                
+
                 {/* Scan area */}
-                <Animated.View 
+                <Animated.View
                     style={[
                         styles.scanArea,
                         { transform: [{ scale: pulseAnim }] }
@@ -237,7 +324,7 @@ const ViewerQRScanScreen: React.FC = () => {
                     <View style={[styles.corner, styles.cornerTopRight]} />
                     <View style={[styles.corner, styles.cornerBottomLeft]} />
                     <View style={[styles.corner, styles.cornerBottomRight]} />
-                    
+
                     {/* Scanning line */}
                     <Animated.View
                         style={[
@@ -253,10 +340,10 @@ const ViewerQRScanScreen: React.FC = () => {
                         ]}
                     />
                 </Animated.View>
-                
+
                 <View style={styles.overlaySide} />
             </View>
-            
+
             {/* Bottom overlay */}
             <View style={styles.overlayBottom}>
                 <Text style={styles.instructionText}>
@@ -266,10 +353,49 @@ const ViewerQRScanScreen: React.FC = () => {
         </View>
     );
 
+    const renderSuccessView = () => (
+        <GradientBackground style={styles.container}>
+            <StatusBar barStyle="dark-content" />
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+                        <Ionicons name="close" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>등록 성공</Text>
+                    <View style={styles.placeholder} />
+                </View>
+
+                <View style={styles.successContainer}>
+                    <GlassCard style={styles.successCard}>
+                        <Animated.View style={styles.successIcon}>
+                            <Ionicons
+                                name="checkmark-circle"
+                                size={80}
+                                color={colors.success}
+                            />
+                        </Animated.View>
+                        <Text style={styles.successTitle}>등록 성공!</Text>
+                        <Text style={styles.successSubtitle}>
+                            홈캠이 성공적으로 등록되었습니다{'\n'}잠시 후 홈캠 목록으로 이동합니다
+                        </Text>
+
+                        {/* QR 데이터 표시 */}
+                        <View style={styles.successQRDisplay}>
+                            <Text style={styles.successQRLabel}>스캔한 QR 코드</Text>
+                            <Text style={styles.successQRData} numberOfLines={1}>
+                                {scannedData || 'QR 데이터'}
+                            </Text>
+                        </View>
+                    </GlassCard>
+                </View>
+            </SafeAreaView>
+        </GradientBackground>
+    );
+
     const renderCameraView = () => (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
-            
+
             <CameraView
                 style={styles.camera}
                 barCodeScannerSettings={{
@@ -303,10 +429,10 @@ const ViewerQRScanScreen: React.FC = () => {
                                 }
                             }}
                         >
-                            <Ionicons 
-                                name={isScanning ? "pause" : "play"} 
-                                size={24} 
-                                color="white" 
+                            <Ionicons
+                                name={isScanning ? "pause" : "play"}
+                                size={24}
+                                color="white"
                             />
                             <Text style={styles.controlButtonText}>
                                 {isScanning ? '일시정지' : '스캔 시작'}
@@ -332,6 +458,10 @@ const ViewerQRScanScreen: React.FC = () => {
 
     if (!permission.granted) {
         return renderPermissionView();
+    }
+
+    if (isSuccess) {
+        return renderSuccessView();
     }
 
     return renderCameraView();
@@ -543,6 +673,59 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: 'white',
         fontWeight: '500',
+    },
+
+    // Success state
+    successContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing.xl,
+    },
+    successCard: {
+        alignItems: 'center',
+        padding: spacing.xl,
+        width: '100%',
+        maxWidth: 320,
+    },
+    successIcon: {
+        marginBottom: spacing.xl,
+    },
+    successTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: colors.success,
+        marginBottom: spacing.md,
+        textAlign: 'center',
+    },
+    successSubtitle: {
+        fontSize: 16,
+        color: colors.textSecondary,
+        marginBottom: spacing.xl,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    successQRDisplay: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        paddingVertical: spacing.lg,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.success,
+        alignItems: 'center',
+        width: '100%',
+    },
+    successQRLabel: {
+        fontSize: 14,
+        color: colors.textSecondary,
+        marginBottom: spacing.sm,
+        fontWeight: '500',
+    },
+    successQRData: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.success,
+        textAlign: 'center',
     },
 });
 

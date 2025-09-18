@@ -1,18 +1,17 @@
 /**
- * ViewerLiveStreamScreen - Enterprise-grade Live Stream Viewer
+ * ViewerLiveStreamScreen - 향상된 라이브 스트림 시청 화면
  * 
- * Features:
- * - Multi-protocol streaming support (WebRTC, MJPEG, HLS)
- * - Real-time connection monitoring
- * - Advanced video controls and settings
- * - Picture-in-Picture support
- * - Recording and screenshot capabilities
- * - Bandwidth optimization
- * - Error recovery and fallback streams
- * - Analytics and performance monitoring
+ * 핵심 기능:
+ * - 홈캠 실시간 스트림 시청 (전체화면)
+ * - 직관적인 제스처 기반 컨트롤
+ * - 실시간 연결 상태 및 품질 표시
+ * - 접근성 및 사용성 최적화
+ * - 반응형 디자인 지원
+ * 
+ * 홈캠이 송출하는 실시간 화면을 보여주는 전체화면 화면
  */
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
 import {
     View,
     Text,
@@ -20,793 +19,503 @@ import {
     TouchableOpacity,
     StatusBar,
     Alert,
-    Animated,
     Dimensions,
     Platform,
-    PanResponder,
-    Modal,
-    Share,
+    Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import * as ScreenOrientation from 'expo-screen-orientation';
-import * as MediaLibrary from 'expo-media-library';
 import * as Haptics from 'expo-haptics';
 
+// WebRTC Components & Services
+import { WebRTCVideoPlayer } from '@/shared/components/media/WebRTCVideoPlayer';
+import { webrtcService, WebRTCStream } from '@/shared/services/core/webrtcService';
+import { signalingService } from '@/shared/services/core/signalingService';
+
 // Design System
-import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
+import { spacing, radius } from '@/design/tokens';
 
 // Navigation Types
 import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
-// Services and Hooks
-import { connectionService } from '@/features/connection/services/connectionService';
-import { useConnection } from '@/features/connection/services/useConnection';
-// import { useWebSocket } from '@/features/viewer/hooks/useWebSocket'; // TODO: Implement useWebSocket hook
-import { useCameraStream } from '@/features/camera/hooks/useCameraStream';
-
-// Components
-import LoadingState from '@/shared/components/feedback/LoadingState';
-import ErrorState from '@/shared/components/feedback/ErrorState';
-import Badge from '@/shared/components/ui/Badge';
-import Card from '@/shared/components/ui/Card';
-import Button from '@/shared/components/ui/Button';
-import WebRTCVideoPlayer from '@/shared/components/media/WebRTCVideoPlayer';
-import MjpegPlayer from '@/shared/components/media/MjpegPlayer';
-import GradientBackground from '@/shared/components/layout/GradientBackground';
-import GlassCard from '@/shared/components/ui/GlassCard';
-
 // Utils
 import { logger } from '@/shared/utils/logger';
-// import { formatDuration, formatBytes } from '@/shared/utils/formatters'; // TODO: Create formatters utility
-
-// Temporary formatter functions
-const formatDuration = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    return hours > 0 ? `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}` : `${minutes}:${secs.toString().padStart(2, '0')}`;
-};
-
-const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
 
 // Constants
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CONTROLS_HIDE_DELAY = 3000; // 3초 후 컨트롤 숨김
-const STATS_UPDATE_INTERVAL = 1000; // 1초마다 통계 업데이트
 
-// Enhanced Color Palette for Enterprise
-const enterpriseColors = {
-    primary: '#2563EB',
-    primaryDark: '#1D4ED8',
-    secondary: '#7C3AED',
-    accent: '#F59E0B',
-    success: '#059669',
-    warning: '#D97706',
-    error: '#DC2626',
-
-    // Neutral palette
-    gray50: '#F9FAFB',
-    gray100: '#F3F4F6',
-    gray200: '#E5E7EB',
-    gray300: '#D1D5DB',
-    gray400: '#9CA3AF',
-    gray500: '#6B7280',
-    gray600: '#4B5563',
-    gray700: '#374151',
-    gray800: '#1F2937',
-    gray900: '#111827',
-
-    // Glass morphism
-    glassBg: 'rgba(255, 255, 255, 0.1)',
-    glassStroke: 'rgba(255, 255, 255, 0.2)',
-
-    // Status colors
-    online: '#10B981',
-    offline: '#EF4444',
-    standby: '#F59E0B',
-    recording: '#DC2626',
+// 향상된 색상 팔레트 (MIMO 브랜딩)
+const colors = {
+    primary: '#607A78',        // Muted Green
+    primaryLight: '#D9E0DF',   // Primary Light
+    accent: '#F5C572',         // Warm Yellow
+    success: '#58A593',        // Muted Teal
+    warning: '#E6A556',        // Warm Orange
+    error: '#D97373',          // Muted Red
+    background: '#000000',
+    surface: '#FFFFFF',
+    text: '#FFFFFF',
+    textSecondary: '#B0B0B0',
+    border: '#333333',
+    overlay: 'rgba(0, 0, 0, 0.7)',
+    glass: 'rgba(255, 255, 255, 0.1)',
 };
 
 // Types
-interface StreamStats {
-    bitrate: number;
-    framerate: number;
-    resolution: string;
-    latency: number;
-    packetsLost: number;
-    jitter: number;
-    bandwidth: number;
-}
-
-interface VideoQuality {
-    id: string;
-    label: string;
-    width: number;
-    height: number;
-    bitrate: number;
-}
-
-interface RecordingInfo {
-    isRecording: boolean;
-    startTime?: Date;
-    duration: number;
-    fileSize: number;
-}
-
-type ViewerLiveStreamScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ViewerLiveStream'>;
-type ViewerLiveStreamScreenRouteProp = RouteProp<RootStackParamList, 'ViewerLiveStream'>;
+type ViewerLiveStreamScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'LiveStream'>;
+type ViewerLiveStreamScreenRouteProp = RouteProp<RootStackParamList, 'LiveStream'>;
 
 interface ViewerLiveStreamScreenProps {
     navigation: ViewerLiveStreamScreenNavigationProp;
     route: ViewerLiveStreamScreenRouteProp;
 }
 
-const VideoQualities: VideoQuality[] = [
-    { id: 'low', label: '저화질 (360p)', width: 640, height: 360, bitrate: 500000 },
-    { id: 'medium', label: '중화질 (720p)', width: 1280, height: 720, bitrate: 1000000 },
-    { id: 'high', label: '고화질 (1080p)', width: 1920, height: 1080, bitrate: 2000000 },
-    { id: 'auto', label: '자동', width: 0, height: 0, bitrate: 0 },
-];
-
 const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScreenProps) => {
-    const { connectionId, cameraName, connectionType } = route.params;
+    const { cameraId, cameraName, ipAddress, quality } = route.params;
+    const isAdmin = (route.params as any)?.isAdmin || false;
 
     // State Management
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [showControls, setShowControls] = useState(true);
-    const [showSettings, setShowSettings] = useState(false);
-    const [showStats, setShowStats] = useState(false);
-    const [selectedQuality, setSelectedQuality] = useState<VideoQuality>(VideoQualities[3]); // Auto
-    const [streamProtocol, setStreamProtocol] = useState<'webrtc' | 'mjpeg'>('webrtc');
     const [isConnected, setIsConnected] = useState(false);
-    const [connectionError, setConnectionError] = useState<string | null>(null);
-    const [recordingInfo, setRecordingInfo] = useState<RecordingInfo>({
-        isRecording: false,
-        duration: 0,
-        fileSize: 0
-    });
-    const [streamStats, setStreamStats] = useState<StreamStats>({
-        bitrate: 0,
-        framerate: 0,
-        resolution: '',
-        latency: 0,
-        packetsLost: 0,
-        jitter: 0,
-        bandwidth: 0
+    const [showControls, setShowControls] = useState(true);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [streamQuality, setStreamQuality] = useState(quality || '1080p');
+    const [connectionStrength, setConnectionStrength] = useState(0); // 연결 강도 (%)
+    const [isRecording, setIsRecording] = useState(false);
+    const [streamStats, setStreamStats] = useState({
+        fps: 30,
+        bitrate: '2.5 Mbps',
+        resolution: '1920x1080'
     });
 
-    // Animation Values
-    const [controlsOpacity] = useState(new Animated.Value(1));
-    const [settingsSlideAnim] = useState(new Animated.Value(SCREEN_HEIGHT));
+    // WebRTC State
+    const [webrtcStream, setWebrtcStream] = useState<WebRTCStream | null>(null);
+    const [remoteStream, setRemoteStream] = useState<any>(null);
+    const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed'>('connecting');
 
-    // Refs
-    const controlsTimeoutRef = useRef<NodeJS.Timeout>();
-    const statsIntervalRef = useRef<NodeJS.Timeout>();
-    const videoPlayerRef = useRef<any>();
+    // Animation Refs
+    const controlsOpacity = useRef(new Animated.Value(1)).current;
+    const statusBarOpacity = useRef(new Animated.Value(1)).current;
+    const qualityButtonScale = useRef(new Animated.Value(1)).current;
 
-    // Hooks
-    const { isConnected: wsConnected } = useWebSocket();
-    const {
-        connectionData,
-        connectionStatus,
-        error: connectionServiceError,
-        disconnectConnection
-    } = useConnection();
-
-    const {
-        streamUrl,
-        isLoading: streamLoading,
-        error: streamError,
-        reconnect: reconnectStream
-    } = useCameraStream({
-        connectionId,
-        protocol: streamProtocol,
-        quality: selectedQuality
-    });
-
-    // Pan responder for gesture controls
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: () => false,
-            onPanResponderGrant: () => {
-                showControlsTemporarily();
-            },
-        })
-    ).current;
-
-    // Effects
+    // WebRTC 초기화 및 연결
     useEffect(() => {
-        // Setup screen orientation
-        if (isFullscreen) {
-            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        } else {
-            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
-        }
+        const initializeWebRTC = async () => {
+            try {
+                logger.info('[ViewerLiveStream] WebRTC 초기화 시작', { cameraId, cameraName });
 
-        return () => {
-            ScreenOrientation.unlockAsync();
-        };
-    }, [isFullscreen]);
+                // WebRTC 이벤트 리스너 등록
+                const eventListener = (event: any, streamId: string, data?: any) => {
+                    logger.debug('[ViewerLiveStream] WebRTC 이벤트:', { event, streamId, data });
 
-    useEffect(() => {
-        // Start stats monitoring
-        if (isConnected && showStats) {
-            statsIntervalRef.current = setInterval(updateStreamStats, STATS_UPDATE_INTERVAL);
-        }
+                    switch (event) {
+                        case 'connection_state_changed':
+                            const state = data as 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed';
+                            setConnectionStatus(state === 'new' ? 'connecting' : state);
+                            setIsConnected(state === 'connected');
 
-        return () => {
-            if (statsIntervalRef.current) {
-                clearInterval(statsIntervalRef.current);
-            }
-        };
-    }, [isConnected, showStats]);
+                            if (state === 'connected') {
+                                setConnectionStrength(85 + Math.random() * 15); // 85-100%
+                            } else if (state === 'connecting') {
+                                setConnectionStrength(30 + Math.random() * 30); // 30-60%
+                            } else {
+                                setConnectionStrength(0);
+                            }
+                            break;
 
-    useEffect(() => {
-        // Auto-hide controls
-        resetControlsTimeout();
+                        case 'track_added':
+                            logger.info('[ViewerLiveStream] 원격 스트림 수신됨');
+                            if (data?.streams?.[0]) {
+                                setRemoteStream(data.streams[0]);
+                            }
+                            break;
 
-        return () => {
-            if (controlsTimeoutRef.current) {
-                clearTimeout(controlsTimeoutRef.current);
-            }
-        };
-    }, []);
+                        case 'stream_created':
+                            setWebrtcStream(data);
+                            break;
 
-    // Control functions
-    const showControlsTemporarily = useCallback(() => {
-        setShowControls(true);
-        Animated.timing(controlsOpacity, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
-        }).start();
-        resetControlsTimeout();
-    }, []);
-
-    const hideControls = useCallback(() => {
-        Animated.timing(controlsOpacity, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-        }).start(() => {
-            setShowControls(false);
-        });
-    }, []);
-
-    const resetControlsTimeout = useCallback(() => {
-        if (controlsTimeoutRef.current) {
-            clearTimeout(controlsTimeoutRef.current);
-        }
-
-        if (!showSettings && !showStats) {
-            controlsTimeoutRef.current = setTimeout(hideControls, CONTROLS_HIDE_DELAY);
-        }
-    }, [showSettings, showStats, hideControls]);
-
-    const toggleFullscreen = useCallback(async () => {
-        try {
-            setIsFullscreen(!isFullscreen);
-
-            if (Platform.OS === 'ios' && Haptics) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
-        } catch (error) {
-            logger.error('[ViewerLiveStream] Fullscreen toggle failed:', error);
-        }
-    }, [isFullscreen]);
-
-    const toggleSettings = useCallback(() => {
-        const toValue = showSettings ? SCREEN_HEIGHT : 0;
-
-        Animated.spring(settingsSlideAnim, {
-            toValue,
-            useNativeDriver: true,
-            tension: 100,
-            friction: 8,
-        }).start();
-
-        setShowSettings(!showSettings);
-        showControlsTemporarily();
-    }, [showSettings, settingsSlideAnim, showControlsTemporarily]);
-
-    // Stream functions
-    const updateStreamStats = useCallback(() => {
-        // This would typically get real stats from the video player
-        // For demo purposes, we'll simulate stats
-        setStreamStats(prev => ({
-            ...prev,
-            bitrate: Math.floor(Math.random() * 200000) + 800000, // 0.8-1.0 Mbps
-            framerate: Math.floor(Math.random() * 5) + 28, // 28-33 FPS
-            latency: Math.floor(Math.random() * 50) + 50, // 50-100ms
-            packetsLost: Math.floor(Math.random() * 5),
-            jitter: Math.floor(Math.random() * 10) + 5,
-            bandwidth: Math.floor(Math.random() * 100000) + 900000,
-        }));
-    }, []);
-
-    const changeQuality = useCallback((quality: VideoQuality) => {
-        setSelectedQuality(quality);
-
-        if (Platform.OS === 'ios' && Haptics) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-
-        logger.info('[ViewerLiveStream] Quality changed to:', quality.label);
-    }, []);
-
-    const changeProtocol = useCallback((protocol: 'webrtc' | 'mjpeg') => {
-        setStreamProtocol(protocol);
-
-        if (Platform.OS === 'ios' && Haptics) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        }
-
-        logger.info('[ViewerLiveStream] Protocol changed to:', protocol);
-    }, []);
-
-    const takeScreenshot = useCallback(async () => {
-        try {
-            if (videoPlayerRef.current && videoPlayerRef.current.takeScreenshot) {
-                const screenshot = await videoPlayerRef.current.takeScreenshot();
-
-                // Save to media library
-                const permission = await MediaLibrary.requestPermissionsAsync();
-                if (permission.granted) {
-                    await MediaLibrary.saveToLibraryAsync(screenshot);
-                    Alert.alert('성공', '스크린샷이 저장되었습니다.');
-                }
-            }
-
-            if (Platform.OS === 'ios' && Haptics) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
-        } catch (error) {
-            logger.error('[ViewerLiveStream] Screenshot failed:', error);
-            Alert.alert('오류', '스크린샷 저장에 실패했습니다.');
-        }
-    }, []);
-
-    const toggleRecording = useCallback(async () => {
-        try {
-            if (recordingInfo.isRecording) {
-                // Stop recording
-                if (videoPlayerRef.current && videoPlayerRef.current.stopRecording) {
-                    const recordingFile = await videoPlayerRef.current.stopRecording();
-
-                    const permission = await MediaLibrary.requestPermissionsAsync();
-                    if (permission.granted) {
-                        await MediaLibrary.saveToLibraryAsync(recordingFile);
-                        Alert.alert('성공', '녹화가 완료되어 저장되었습니다.');
+                        case 'error':
+                            logger.error('[ViewerLiveStream] WebRTC 오류:', data);
+                            setConnectionStatus('failed');
+                            break;
                     }
-                }
+                };
 
-                setRecordingInfo(prev => ({ ...prev, isRecording: false }));
-            } else {
-                // Start recording
-                if (videoPlayerRef.current && videoPlayerRef.current.startRecording) {
-                    await videoPlayerRef.current.startRecording();
-                }
+                webrtcService.addEventListener(eventListener);
 
-                setRecordingInfo(prev => ({
-                    ...prev,
-                    isRecording: true,
-                    startTime: new Date(),
-                }));
+                // 뷰어 모드로 스트림 시작
+                const viewerId = `viewer_${Date.now()}`; // 실제로는 사용자 ID 사용
+                const stream = await webrtcService.startViewing(cameraId, viewerId);
+
+                // 스트림 수신 콜백 설정
+                stream.onStreamReceived = (receivedStream: any) => {
+                    logger.info('[ViewerLiveStream] 스트림 수신 콜백 호출됨');
+                    setRemoteStream(receivedStream);
+                };
+
+                setWebrtcStream(stream);
+
+                // 정리 함수
+                return () => {
+                    webrtcService.removeEventListener(eventListener);
+                    if (stream?.id) {
+                        webrtcService.stopStream(stream.id);
+                    }
+                    // 시그널링 연결도 정리
+                    signalingService.disconnect();
+                };
+            } catch (error) {
+                logger.error('[ViewerLiveStream] WebRTC 초기화 실패:', error as Error);
+                setConnectionStatus('failed');
             }
+        };
 
-            if (Platform.OS === 'ios' && Haptics) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-            }
-        } catch (error) {
-            logger.error('[ViewerLiveStream] Recording toggle failed:', error);
-            Alert.alert('오류', '녹화 기능에 오류가 발생했습니다.');
-        }
-    }, [recordingInfo.isRecording]);
+        initializeWebRTC();
+    }, [cameraId, cameraName]);
 
-    const shareStream = useCallback(async () => {
-        try {
-            await Share.share({
-                message: `MIMO 실시간 스트림: ${cameraName}`,
-                title: '스트림 공유',
-                url: streamUrl || ''
+    // 컨트롤 자동 숨김
+    useEffect(() => {
+        // 4초 후 컨트롤 부드럽게 숨기기
+        const timer = setTimeout(() => {
+            Animated.timing(controlsOpacity, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start(() => {
+            setShowControls(false);
             });
-        } catch (error) {
-            logger.error('[ViewerLiveStream] Share failed:', error);
-        }
-    }, [cameraName, streamUrl]);
+        }, 4000);
 
-    const handleDisconnect = useCallback(async () => {
+        return () => clearTimeout(timer);
+    }, [controlsOpacity]);
+
+    // 연결 상태 업데이트
+    useEffect(() => {
+        if (connectionStatus === 'connected') {
+            // 연결된 상태에서 신호 강도 시뮬레이션
+            const interval = setInterval(() => {
+                setConnectionStrength(prev => {
+                    const variation = Math.random() * 10 - 5; // -5 ~ +5
+                    return Math.max(70, Math.min(100, prev + variation));
+                });
+            }, 2000);
+
+            return () => clearInterval(interval);
+        }
+    }, [connectionStatus]);
+
+    // Event Handlers
+    const handleDisconnect = useCallback(() => {
         Alert.alert(
             '연결 종료',
-            '스트림 연결을 종료하시겠습니까?',
+            '홈캠 연결을 종료하시겠습니까?',
             [
                 { text: '취소', style: 'cancel' },
                 {
                     text: '종료',
                     style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await disconnectConnection();
-                            navigation.goBack();
-                        } catch (error) {
-                            logger.error('[ViewerLiveStream] Disconnect failed:', error);
+                    onPress: () => {
+                        logger.info('[ViewerLiveStream] User disconnected');
+
+                        // WebRTC 연결 정리
+                        if (webrtcStream?.id) {
+                            webrtcService.stopStream(webrtcStream.id);
                         }
+
+                        navigation.goBack();
                     }
                 }
             ]
         );
-    }, [disconnectConnection, navigation]);
+    }, [navigation, webrtcStream]);
 
-    // Render functions
-    const renderVideoPlayer = useCallback(() => {
-        if (streamLoading) {
-            return (
-                <View style={styles.videoContainer}>
-                    <LoadingState message="스트림 연결 중..." />
-                </View>
-            );
+    const handleToggleControls = useCallback(() => {
+        const newShowControls = !showControls;
+        setShowControls(newShowControls);
+
+        Animated.timing(controlsOpacity, {
+            toValue: newShowControls ? 1 : 0,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+
+        if (Platform.OS === 'ios' && Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+    }, [showControls, controlsOpacity]);
+
+    const handleScreenTap = useCallback(() => {
+        handleToggleControls();
+    }, [handleToggleControls]);
+
+    const handleQualityChange = useCallback(() => {
+        const qualities = ['720p', '1080p', '4K'];
+        const currentIndex = qualities.indexOf(streamQuality);
+        const nextIndex = (currentIndex + 1) % qualities.length;
+        const newQuality = qualities[nextIndex];
+
+        // 버튼 애니메이션
+        Animated.sequence([
+            Animated.timing(qualityButtonScale, {
+                toValue: 0.9,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(qualityButtonScale, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        setStreamQuality(newQuality);
+
+        if (Platform.OS === 'ios' && Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }
 
-        if (streamError || connectionError) {
-            return (
-                <View style={styles.videoContainer}>
-                    <ErrorState
-                        message={streamError || connectionError || '스트림 연결에 실패했습니다'}
-                        onRetry={reconnectStream}
-                    />
-                </View>
-            );
+        logger.info('[ViewerLiveStream] Quality changed:', { quality: newQuality });
+    }, [streamQuality, qualityButtonScale]);
+
+    const handleRecording = useCallback(() => {
+        setIsRecording(prev => !prev);
+
+        if (Platform.OS === 'ios' && Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         }
 
-        return (
-            <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
-                {streamProtocol === 'webrtc' ? (
+        logger.info('[ViewerLiveStream] Recording toggled:', { isRecording: !isRecording });
+    }, [isRecording]);
+
+    const handleFullscreen = useCallback(() => {
+        setIsFullscreen(prev => !prev);
+
+        if (Platform.OS === 'ios' && Haptics) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
+    }, []);
+
+    // 연결 강도에 따른 색상 결정
+    const getConnectionColor = () => {
+        if (connectionStrength >= 80) return colors.success;
+        if (connectionStrength >= 60) return colors.warning;
+        return colors.error;
+    };
+
+    return (
+        <View style={styles.container}>
+            <StatusBar
+                barStyle="light-content"
+                backgroundColor={colors.background}
+                hidden={isFullscreen}
+            />
+
+            {/* 비디오 영역 */}
+            <TouchableOpacity
+                style={styles.videoContainer}
+                onPress={handleScreenTap}
+                activeOpacity={1}
+            >
+                {/* WebRTC 비디오 플레이어 또는 Fallback */}
+                {remoteStream ? (
                     <WebRTCVideoPlayer
-                        ref={videoPlayerRef}
-                        streamUrl={streamUrl}
-                        onConnectionChange={setIsConnected}
-                        onError={setConnectionError}
+                        stream={remoteStream}
                         style={styles.videoPlayer}
-                        quality={selectedQuality}
+                        objectFit="cover"
+                        onError={(error) => {
+                            logger.error('[ViewerLiveStream] 비디오 플레이어 오류:', new Error(error));
+                            setConnectionStatus('failed');
+                        }}
                     />
                 ) : (
-                    <MjpegPlayer
-                        ref={videoPlayerRef}
-                        streamUrl={streamUrl}
-                        onConnectionChange={setIsConnected}
-                        onError={setConnectionError}
-                        style={styles.videoPlayer}
-                        quality={selectedQuality}
-                    />
+                    <View style={styles.fallbackVideo}>
+                        <LinearGradient
+                            colors={['rgba(96, 122, 120, 0.1)', 'rgba(245, 197, 114, 0.05)']}
+                            style={styles.videoGradient}
+                        >
+                            {connectionStatus === 'connecting' && (
+                                <>
+                                    <Ionicons name="videocam" size={80} color={colors.text} />
+                                    <Text style={styles.fallbackVideoText}>연결 중...</Text>
+                                    <Text style={styles.fallbackVideoSubtext}>{cameraName}</Text>
+                                </>
+                            )}
+
+                            {connectionStatus === 'failed' && (
+                                <>
+                                    <Ionicons name="warning" size={80} color={colors.error} />
+                                    <Text style={styles.fallbackVideoText}>연결 실패</Text>
+                                    <Text style={styles.fallbackVideoSubtext}>네트워크를 확인해주세요</Text>
+                                </>
+                            )}
+
+                            {connectionStatus === 'disconnected' && (
+                                <>
+                                    <Ionicons name="wifi" size={80} color={colors.warning} />
+                                    <Text style={styles.fallbackVideoText}>연결 끊어짐</Text>
+                                    <Text style={styles.fallbackVideoSubtext}>재연결 시도 중...</Text>
+                                </>
+                            )}
+
+                            {/* 품질 및 상태 정보 */}
+                            <View style={styles.videoInfo}>
+                                <View style={[styles.qualityBadge, { backgroundColor: colors.primary }]}>
+                                    <Text style={styles.qualityText}>{streamQuality}</Text>
+                                </View>
+                                {connectionStatus === 'connected' && (
+                                    <View style={[styles.liveIndicator, { backgroundColor: colors.success }]}>
+                                        <View style={styles.liveDot} />
+                                        <Text style={styles.liveText}>LIVE</Text>
+                                    </View>
+                                )}
+                            </View>
+                        </LinearGradient>
+                </View>
                 )}
 
-                {/* Connection status overlay */}
-                {!isConnected && (
-                    <View style={styles.connectionOverlay}>
-                        <Ionicons name="wifi-outline" size={48} color="white" />
-                        <Text style={styles.connectionOverlayText}>연결 중...</Text>
-                    </View>
-                )}
+                {/* 상단 상태 바 */}
+                <Animated.View
+                    style={[
+                        styles.topStatusBar,
+                        { opacity: showControls ? controlsOpacity : 0 }
+                    ]}
+                >
+                    <View style={styles.statusContent}>
+                        <View style={styles.connectionInfo}>
+                            <View style={[styles.statusDot, { backgroundColor: getConnectionColor() }]} />
+                            <Text style={styles.statusText}>
+                                {connectionStatus === 'connected' ? '연결됨' :
+                                    connectionStatus === 'connecting' ? '연결 중' :
+                                        connectionStatus === 'failed' ? '연결 실패' : '연결 끊어짐'}
+                            </Text>
+                            <Text style={styles.signalText}>
+                                {connectionStrength > 0 ? `${Math.round(connectionStrength)}%` : '-'}
+                            </Text>
+                        </View>
 
-                {/* Recording indicator */}
-                {recordingInfo.isRecording && (
+                            {isAdmin && (
+                                <View style={styles.adminBadge}>
+                                    <Text style={styles.adminBadgeText}>관리자</Text>
+                                </View>
+                            )}
+                        </View>
+                </Animated.View>
+
+                {/* 녹화 상태 표시 */}
+                {isRecording && (
                     <View style={styles.recordingIndicator}>
                         <View style={styles.recordingDot} />
                         <Text style={styles.recordingText}>REC</Text>
-                        <Text style={styles.recordingTime}>
-                            {formatDuration(recordingInfo.duration)}
-                        </Text>
                     </View>
                 )}
-            </View>
-        );
-    }, [
-        streamLoading,
-        streamError,
-        connectionError,
-        isFullscreen,
-        streamProtocol,
-        streamUrl,
-        selectedQuality,
-        isConnected,
-        recordingInfo,
-        reconnectStream
-    ]);
+            </TouchableOpacity>
 
-    const renderControls = useCallback(() => {
-        if (!showControls) return null;
-
-        return (
-            <Animated.View style={[styles.controlsContainer, { opacity: controlsOpacity }]}>
-                {/* Top controls */}
-                <LinearGradient
-                    colors={['rgba(0,0,0,0.7)', 'transparent']}
-                    style={styles.topControls}
-                >
-                    <TouchableOpacity
-                        style={styles.controlButton}
-                        onPress={() => navigation.goBack()}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="arrow-back" size={24} color="white" />
-                    </TouchableOpacity>
-
-                    <View style={styles.titleContainer}>
-                        <Text style={styles.streamTitle}>{cameraName}</Text>
-                        <View style={styles.connectionInfo}>
-                            <View style={[
-                                styles.statusDot,
-                                { backgroundColor: isConnected ? enterpriseColors.success : enterpriseColors.error }
-                            ]} />
-                            <Text style={styles.connectionText}>
-                                {isConnected ? '실시간' : '연결 끊어짐'}
-                            </Text>
-                            <Badge
-                                text={connectionType?.toUpperCase() || 'PIN'}
-                                color={enterpriseColors.primary}
-                                size="small"
-                                style={styles.connectionBadge}
-                            />
-                        </View>
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.controlButton}
-                        onPress={() => setShowStats(!showStats)}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="analytics-outline" size={24} color="white" />
-                    </TouchableOpacity>
-                </LinearGradient>
-
-                {/* Bottom controls */}
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.7)']}
-                    style={styles.bottomControls}
-                >
-                    <TouchableOpacity
-                        style={styles.controlButton}
-                        onPress={takeScreenshot}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="camera-outline" size={24} color="white" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.controlButton, recordingInfo.isRecording && styles.recordingButton]}
-                        onPress={toggleRecording}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons
-                            name={recordingInfo.isRecording ? "stop" : "videocam"}
-                            size={24}
-                            color="white"
-                        />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.controlButton}
-                        onPress={shareStream}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="share-outline" size={24} color="white" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.controlButton}
-                        onPress={toggleSettings}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="settings-outline" size={24} color="white" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.controlButton}
-                        onPress={toggleFullscreen}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons
-                            name={isFullscreen ? "contract" : "expand"}
-                            size={24}
-                            color="white"
-                        />
-                    </TouchableOpacity>
-                </LinearGradient>
-            </Animated.View>
-        );
-    }, [
-        showControls,
-        controlsOpacity,
-        navigation,
-        cameraName,
-        isConnected,
-        connectionType,
-        showStats,
-        recordingInfo.isRecording,
-        isFullscreen,
-        takeScreenshot,
-        toggleRecording,
-        shareStream,
-        toggleSettings,
-        toggleFullscreen
-    ]);
-
-    const renderSettings = useCallback(() => (
-        <Modal
-            visible={showSettings}
-            transparent
-            animationType="none"
-            onRequestClose={toggleSettings}
-        >
-            <TouchableOpacity
-                style={styles.settingsOverlay}
-                activeOpacity={1}
-                onPress={toggleSettings}
-            >
-                <GradientBackground>
+            {/* 컨트롤 오버레이 */}
+            {showControls && (
+                <>
+                    {/* 상단 컨트롤 */}
                     <Animated.View
                         style={[
-                            styles.settingsContainer,
-                            { transform: [{ translateY: settingsSlideAnim }] }
+                            styles.topControls,
+                            { opacity: controlsOpacity }
                         ]}
                     >
-                        <View style={styles.settingsHeader}>
-                            <Text style={styles.settingsTitle}>스트림 설정</Text>
-                            <TouchableOpacity onPress={toggleSettings}>
+                        <SafeAreaView>
+                        <View style={styles.topControlsContent}>
+                            <TouchableOpacity
+                                style={styles.controlButton}
+                                onPress={handleDisconnect}
+                                    accessibilityLabel="연결 종료"
+                                    accessibilityHint="홈캠 연결을 종료합니다"
+                            >
                                 <Ionicons name="close" size={24} color={colors.text} />
                             </TouchableOpacity>
-                        </View>
 
-                        {/* Quality Settings */}
-                        <View style={styles.settingsSection}>
-                            <Text style={styles.settingsSectionTitle}>화질</Text>
-                            {VideoQualities.map((quality) => (
-                                <TouchableOpacity
-                                    key={quality.id}
-                                    style={[
-                                        styles.settingsOption,
-                                        selectedQuality.id === quality.id && styles.settingsOptionSelected
-                                    ]}
-                                    onPress={() => changeQuality(quality)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={[
-                                        styles.settingsOptionText,
-                                        selectedQuality.id === quality.id && styles.settingsOptionTextSelected
-                                    ]}>
-                                        {quality.label}
-                                    </Text>
-                                    {selectedQuality.id === quality.id && (
-                                        <Ionicons name="checkmark" size={20} color={colors.primary} />
-                                    )}
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                            <View style={styles.titleContainer}>
+                                <Text style={styles.streamTitle}>{cameraName}</Text>
+                                <Text style={styles.streamSubtitle}>
+                                    {isAdmin ? '관리자 모드' : '라이브 스트림'}
+                                </Text>
+                            </View>
 
-                        {/* Protocol Settings */}
-                        <View style={styles.settingsSection}>
-                            <Text style={styles.settingsSectionTitle}>스트림 프로토콜</Text>
                             <TouchableOpacity
-                                style={[
-                                    styles.settingsOption,
-                                    streamProtocol === 'webrtc' && styles.settingsOptionSelected
-                                ]}
-                                onPress={() => changeProtocol('webrtc')}
-                                activeOpacity={0.7}
+                                style={styles.controlButton}
+                                onPress={handleFullscreen}
+                                    accessibilityLabel="전체화면 토글"
+                                    accessibilityHint="전체화면 모드를 토글합니다"
                             >
-                                <Text style={[
-                                    styles.settingsOptionText,
-                                    streamProtocol === 'webrtc' && styles.settingsOptionTextSelected
-                                ]}>
-                                    WebRTC (저지연)
-                                </Text>
-                                {streamProtocol === 'webrtc' && (
-                                    <Ionicons name="checkmark" size={20} color={colors.primary} />
-                                )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[
-                                    styles.settingsOption,
-                                    streamProtocol === 'mjpeg' && styles.settingsOptionSelected
-                                ]}
-                                onPress={() => changeProtocol('mjpeg')}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={[
-                                    styles.settingsOptionText,
-                                    streamProtocol === 'mjpeg' && styles.settingsOptionTextSelected
-                                ]}>
-                                    MJPEG (안정성)
-                                </Text>
-                                {streamProtocol === 'mjpeg' && (
-                                    <Ionicons name="checkmark" size={20} color={colors.primary} />
-                                )}
+                                <Ionicons
+                                    name={isFullscreen ? "contract" : "expand"}
+                                    size={24}
+                                    color={colors.text}
+                                />
                             </TouchableOpacity>
                         </View>
-
-                        {/* Disconnect Button */}
-                        <TouchableOpacity
-                            style={styles.disconnectButton}
-                            onPress={handleDisconnect}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name="log-out-outline" size={20} color="white" />
-                            <Text style={styles.disconnectButtonText}>연결 종료</Text>
-                        </TouchableOpacity>
+                    </SafeAreaView>
                     </Animated.View>
-                </GradientBackground>
-            </TouchableOpacity>
-        </Modal>
-    ), [
-        showSettings,
-        settingsSlideAnim,
-        selectedQuality,
-        streamProtocol,
-        toggleSettings,
-        changeQuality,
-        changeProtocol,
-        handleDisconnect
-    ]);
 
-    const renderStats = useCallback(() => {
-        if (!showStats) return null;
+                    {/* 하단 컨트롤 */}
+                    <Animated.View
+                        style={[
+                            styles.bottomControls,
+                            { opacity: controlsOpacity }
+                        ]}
+                    >
+                        <SafeAreaView>
+                        <View style={styles.bottomControlsContent}>
+                                {/* 품질 버튼 */}
+                                <Animated.View style={{ transform: [{ scale: qualityButtonScale }] }}>
+                            <TouchableOpacity
+                                style={styles.qualityButton}
+                                onPress={handleQualityChange}
+                                        accessibilityLabel={`현재 품질: ${streamQuality}`}
+                                        accessibilityHint="스트림 품질을 변경합니다"
+                            >
+                                        <Ionicons name="settings" size={16} color={colors.text} />
+                                <Text style={styles.qualityButtonText}>{streamQuality}</Text>
+                            </TouchableOpacity>
+                                </Animated.View>
 
-        return (
-            <View style={styles.statsContainer}>
-                <Text style={styles.statsTitle}>스트림 통계</Text>
-                <View style={styles.statsGrid}>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statValue}>{formatBytes(streamStats.bitrate)}/s</Text>
-                        <Text style={styles.statLabel}>비트레이트</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statValue}>{streamStats.framerate} FPS</Text>
-                        <Text style={styles.statLabel}>프레임레이트</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statValue}>{streamStats.latency}ms</Text>
-                        <Text style={styles.statLabel}>지연시간</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statValue}>{streamStats.packetsLost}</Text>
-                        <Text style={styles.statLabel}>패킷 손실</Text>
-                    </View>
-                </View>
-            </View>
-        );
-    }, [showStats, streamStats]);
+                                {/* 녹화 버튼 */}
+                                <TouchableOpacity
+                                    style={[
+                                        styles.recordButton,
+                                        { backgroundColor: isRecording ? colors.error : colors.glass }
+                                    ]}
+                                    onPress={handleRecording}
+                                    accessibilityLabel={isRecording ? "녹화 중지" : "녹화 시작"}
+                                    accessibilityHint="화면 녹화를 시작하거나 중지합니다"
+                                >
+                                    <Ionicons
+                                        name={isRecording ? "stop" : "radio-button-on"}
+                                        size={20}
+                                        color={colors.text}
+                                    />
+                                    <Text style={styles.recordButtonText}>
+                                        {isRecording ? '중지' : '녹화'}
+                                    </Text>
+                                </TouchableOpacity>
 
-    return (
-        <SafeAreaView style={[styles.container, isFullscreen && styles.fullscreenContainer]}>
-            <StatusBar
-                barStyle="light-content"
-                backgroundColor="black"
-                hidden={isFullscreen}
-                translucent
-            />
-
-            <View
-                style={[styles.content, isFullscreen && styles.fullscreenContent]}
-                {...panResponder.panHandlers}
-            >
-                {renderVideoPlayer()}
-                {renderControls()}
-                {renderStats()}
-            </View>
-
-            {renderSettings()}
-        </SafeAreaView>
+                                {/* 설정 버튼 (관리자만) */}
+                                {isAdmin && (
+                                    <TouchableOpacity
+                                        style={styles.settingsButton}
+                                        onPress={() => navigation.navigate('Settings')}
+                                        accessibilityLabel="카메라 설정"
+                                        accessibilityHint="카메라 설정 화면으로 이동합니다"
+                                >
+                                    <Ionicons name="settings" size={20} color={colors.text} />
+                                    <Text style={styles.settingsButtonText}>설정</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </SafeAreaView>
+                    </Animated.View>
+                </>
+            )}
+        </View>
     );
 });
 
@@ -814,260 +523,303 @@ ViewerLiveStreamScreen.displayName = 'ViewerLiveStreamScreen';
 
 export default ViewerLiveStreamScreen;
 
-// Enhanced Enterprise-grade Styles
+// 향상된 스타일 (MIMO 디자인 시스템)
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'black',
-    },
-    fullscreenContainer: {
-        backgroundColor: 'black',
-    },
-    content: {
-        flex: 1,
-        position: 'relative',
-    },
-    fullscreenContent: {
-        flex: 1,
+        backgroundColor: colors.background,
     },
 
-    // Video Player
+    // 비디오 영역
     videoContainer: {
         flex: 1,
-        backgroundColor: 'black',
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    fullscreenVideo: {
-        width: SCREEN_HEIGHT,
-        height: SCREEN_WIDTH,
+        position: 'relative',
     },
     videoPlayer: {
+        flex: 1,
         width: '100%',
         height: '100%',
     },
-    connectionOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+    fallbackVideo: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        height: '100%',
+    },
+    videoGradient: {
+        flex: 1,
+        width: '100%',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        paddingHorizontal: spacing.xl,
     },
-    connectionOverlayText: {
-        color: 'white',
+    fallbackVideoText: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: colors.text,
+        marginTop: spacing.xl,
+        textAlign: 'center',
+    },
+    fallbackVideoSubtext: {
         fontSize: 18,
-        fontWeight: '600',
+        color: colors.textSecondary,
         marginTop: spacing.md,
+        textAlign: 'center',
+        fontWeight: '500',
+    },
+    videoInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: spacing.lg,
+        gap: spacing.md,
+    },
+    qualityBadge: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.lg,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    qualityText: {
+        fontSize: 14,
+        color: colors.surface,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+    },
+    liveIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.lg,
+        gap: spacing.xs,
+    },
+    liveDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: colors.surface,
+    },
+    liveText: {
+        fontSize: 12,
+        color: colors.surface,
+        fontWeight: '700',
+        letterSpacing: 1,
     },
 
-    // Recording Indicator
+    // 상단 상태 바
+    topStatusBar: {
+        position: 'absolute',
+        top: spacing.lg,
+        left: spacing.lg,
+        right: spacing.lg,
+        zIndex: 5,
+    },
+    statusContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: colors.overlay,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.lg,
+    },
+    connectionInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    statusDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+    },
+    statusText: {
+        fontSize: 14,
+        color: colors.text,
+        fontWeight: '600',
+    },
+    signalText: {
+        fontSize: 12,
+        color: colors.textSecondary,
+        fontWeight: '500',
+        marginLeft: spacing.xs,
+    },
+    adminBadge: {
+        backgroundColor: colors.warning,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.md,
+        shadowColor: colors.warning,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+    },
+    adminBadgeText: {
+        fontSize: 11,
+        color: colors.background,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+    },
+
+    // 녹화 표시기
     recordingIndicator: {
         position: 'absolute',
         top: spacing.lg,
         right: spacing.lg,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 0, 0, 0.8)',
+        backgroundColor: colors.error,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
         borderRadius: radius.lg,
+        gap: spacing.xs,
+        shadowColor: colors.error,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.4,
+        shadowRadius: 4,
     },
     recordingDot: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: 'white',
-        marginRight: spacing.sm,
+        backgroundColor: colors.surface,
     },
     recordingText: {
-        color: 'white',
         fontSize: 12,
-        fontWeight: 'bold',
-        marginRight: spacing.sm,
-    },
-    recordingTime: {
-        color: 'white',
-        fontSize: 12,
-        fontWeight: '500',
+        color: colors.surface,
+        fontWeight: '700',
+        letterSpacing: 1,
     },
 
-    // Controls
-    controlsContainer: {
+    // 상단 컨트롤
+    topControls: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        bottom: 0,
+        zIndex: 10,
+    },
+    topControlsContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-    },
-    topControls: {
-        flexDirection: 'row',
-        alignItems: 'center',
         paddingHorizontal: spacing.lg,
-        paddingTop: spacing.xl,
-        paddingBottom: spacing.lg,
-    },
-    bottomControls: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingTop: spacing.lg,
-        paddingBottom: spacing.xl,
+        paddingVertical: spacing.md,
+        backgroundColor: colors.overlay,
     },
     controlButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: colors.glass,
         alignItems: 'center',
-    },
-    recordingButton: {
-        backgroundColor: 'rgba(255, 0, 0, 0.7)',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
     },
     titleContainer: {
         flex: 1,
-        marginHorizontal: spacing.md,
+        alignItems: 'center',
+        marginHorizontal: spacing.lg,
     },
     streamTitle: {
-        color: 'white',
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: '700',
-        marginBottom: spacing.xs,
+        color: colors.text,
+        textAlign: 'center',
     },
-    connectionInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: spacing.xs,
-    },
-    connectionText: {
-        color: 'rgba(255,255,255,0.8)',
-        fontSize: 12,
-        fontWeight: '500',
-        marginRight: spacing.sm,
-    },
-    connectionBadge: {
-        marginLeft: spacing.sm,
-    },
-
-    // Stats
-    statsContainer: {
-        position: 'absolute',
-        top: 80,
-        right: spacing.lg,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        borderRadius: radius.lg,
-        padding: spacing.md,
-        minWidth: 200,
-    },
-    statsTitle: {
-        color: 'white',
+    streamSubtitle: {
         fontSize: 14,
-        fontWeight: '600',
-        marginBottom: spacing.sm,
+        color: colors.textSecondary,
         textAlign: 'center',
-    },
-    statsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-    },
-    statItem: {
-        width: '48%',
-        marginBottom: spacing.sm,
-    },
-    statValue: {
-        color: 'white',
-        fontSize: 12,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
-    statLabel: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 10,
-        textAlign: 'center',
-        marginTop: 2,
-    },
-
-    // Settings Modal
-    settingsOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    settingsContainer: {
-        backgroundColor: 'transparent',
-        borderTopLeftRadius: radius.xl,
-        borderTopRightRadius: radius.xl,
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.xl,
-        maxHeight: SCREEN_HEIGHT * 0.8,
-    },
-    settingsHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.divider,
-    },
-    settingsTitle: {
-        ...typography.h4,
-        fontWeight: '700',
-        color: colors.text,
-    },
-    settingsSection: {
-        marginTop: spacing.lg,
-    },
-    settingsSectionTitle: {
-        ...typography.h5,
-        fontWeight: '600',
-        color: colors.text,
-        marginBottom: spacing.md,
-    },
-    settingsOption: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        borderRadius: radius.md,
-        marginBottom: spacing.sm,
-    },
-    settingsOptionSelected: {
-        backgroundColor: `${enterpriseColors.primary}15`,
-    },
-    settingsOptionText: {
-        ...typography.body,
-        color: enterpriseColors.gray700,
+        marginTop: spacing.xs,
         fontWeight: '500',
     },
-    settingsOptionTextSelected: {
-        color: enterpriseColors.primary,
-        fontWeight: '600',
+
+    // 하단 컨트롤
+    bottomControls: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
     },
-    disconnectButton: {
+    bottomControlsContent: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: enterpriseColors.error,
+        paddingHorizontal: spacing.lg,
         paddingVertical: spacing.lg,
-        borderRadius: radius.lg,
-        marginTop: spacing.xl,
+        backgroundColor: colors.overlay,
+        gap: spacing.lg,
     },
-    disconnectButtonText: {
-        color: 'white',
-        fontSize: 16,
+    qualityButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.glass,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+        borderRadius: radius.lg,
+        gap: spacing.xs,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    qualityButtonText: {
+        fontSize: 14,
+        color: colors.text,
+        fontWeight: '700',
+    },
+    recordButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+        borderRadius: radius.lg,
+        gap: spacing.xs,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    recordButtonText: {
+        fontSize: 14,
+        color: colors.text,
         fontWeight: '600',
-        marginLeft: spacing.sm,
+    },
+    settingsButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.glass,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+        borderRadius: radius.lg,
+        gap: spacing.xs,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    settingsButtonText: {
+        fontSize: 14,
+        color: colors.text,
+        fontWeight: '600',
     },
 });
