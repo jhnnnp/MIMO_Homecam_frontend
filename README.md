@@ -23,59 +23,84 @@
 
 ## 🎯 Overview
 
-MIMO Camera는 React Native와 Expo를 기반으로 한 실시간 카메라 스트리밍 애플리케이션입니다. WebRTC를 통한 P2P 스트리밍, 실시간 모션 감지, 자동 녹화 기능을 제공합니다.
+MIMO Camera는 **전통적인 홈캠의 본질**을 구현한 React Native 애플리케이션입니다. 홈캠은 항상 대기 상태를 유지하고, 뷰어는 QR 스캔 또는 PIN 입력으로 언제든 접속할 수 있습니다.
+
+### 🏠 홈캠 시스템의 핵심
+
+**홈캠 모드 (Camera Mode)**:
+- 앱 실행 시 자동으로 **연결 대기** 상태
+- QR 코드와 6자리 PIN 동시 생성
+- 뷰어의 연결 요청을 항상 수락 준비
+
+**뷰어 모드 (Viewer Mode)**:
+- QR 코드 스캔으로 **즉시 연결**
+- PIN 입력으로 **수동 연결**
+- 실시간 스트림 시청
 
 ### 🏗️ Architecture Highlights
 
-- **🔐 보안 강화**: JWT 토큰 관리, SecureStore 활용
-- **📡 실시간 통신**: WebSocket 기반 실시간 스트리밍
-- **🎥 WebRTC**: P2P 비디오 스트리밍
-- **🤖 모션 감지**: 실시간 모션 감지 및 알림
-- **📱 크로스 플랫폼**: iOS/Android 지원
-- **⚡ 성능 최적화**: 캐싱, 재시도 로직, 에러 처리
+- 🎥 **항상 대기**: 홈캠 ON/OFF 개념 없이 항상 준비됨
+- 📱 **간편 연결**: QR 스캔 또는 PIN 입력으로 3초 내 연결
+- 🔐 **보안 강화**: JWT 토큰 관리, 연결 코드 만료 처리
+- 📡 **실시간 통신**: WebSocket 기반 상태 동기화
+- 🎥 **스트리밍**: WebRTC P2P 비디오 스트리밍
+- 📱 **크로스 플랫폼**: iOS/Android 지원
+- ⚡ **성능 최적화**: 자동 재연결, 에러 복구, 캐싱
 
 ## ✨ Features
 
+### 🏠 홈캠-뷰어 연결 시스템
+- [x] **항상 대기**: 홈캠 앱 실행 시 자동으로 연결 대기 상태
+- [x] **QR 코드 생성**: JSON 형태의 보안 QR 코드 생성 (PIN + 메타데이터)
+- [x] **PIN 코드 생성**: 6자리 숫자 PIN 코드 동시 생성
+- [x] **QR 스캔**: 카메라 기반 실시간 QR 코드 스캔
+- [x] **PIN 입력**: 숫자 키패드를 통한 PIN 입력
+- [x] **즉시 연결**: 코드 인식 후 3초 내 자동 연결
+- [x] **만료 관리**: 연결 코드 10분 자동 만료 및 갱신
+
 ### 🔐 Authentication & Security
 - [x] JWT 기반 인증 시스템
-- [x] 자동 토큰 갱신
+- [x] 자동 토큰 갱신 (만료 5분 전)
 - [x] SecureStore를 통한 안전한 토큰 저장
 - [x] Google OAuth 지원
 - [x] 이메일 인증 시스템
+- [x] 연결 코드 검증 및 만료 처리
 
 ### 📹 Camera & Streaming
-- [x] 실시간 카메라 스트리밍
-- [x] WebRTC P2P 연결
-- [x] 다중 카메라 지원
-- [x] 스트림 품질 조정
+- [x] 실시간 카메라 미리보기
+- [x] 전면/후면 카메라 전환
+- [x] WebRTC P2P 연결 (준비 중)
+- [x] WebSocket 기반 스트림 제어
 - [x] 자동 재연결 기능
+- [x] 연결 상태 실시간 동기화
 
-### 🎯 Motion Detection
-- [x] 실시간 모션 감지
-- [x] 감도 조정
-- [x] 감지 영역 설정
-- [x] 자동 알림 발송
-- [x] 이벤트 로깅
+### 🎯 Motion Detection (준비 중)
+- [ ] 실시간 모션 감지
+- [ ] 감도 조정
+- [ ] 감지 영역 설정
+- [ ] 자동 알림 발송
+- [ ] 이벤트 로깅
 
 ### 📱 Notifications
-- [x] 푸시 알림
-- [x] 로컬 알림
-- [x] 조용한 시간 설정
-- [x] 알림 카테고리 관리
-- [x] 실시간 알림
+- [x] 연결 상태 알림
+- [x] 에러 상태 알림
+- [x] 햅틱 피드백
+- [x] 토스트 메시지
+- [ ] 푸시 알림 (준비 중)
 
-### 🎬 Recording
-- [x] 자동 녹화
-- [x] 수동 녹화
-- [x] 스냅샷 촬영
-- [x] 녹화 파일 관리
-- [x] 갤러리 저장
+### 🎬 Recording (준비 중)
+- [ ] 자동 녹화
+- [ ] 수동 녹화
+- [ ] 스냅샷 촬영
+- [ ] 녹화 파일 관리
+- [ ] 갤러리 저장
 
 ### ⚙️ Settings & Configuration
 - [x] 환경별 설정 관리
 - [x] 사용자 설정 저장
+- [x] 카메라 설정 (해상도, FPS 등)
 - [x] 설정 동기화
-- [x] 설정 내보내기/가져오기
+- [ ] 설정 내보내기/가져오기 (준비 중)
 
 ## 🏗️ Architecture
 
@@ -184,6 +209,69 @@ EXPO_PUBLIC_MAX_TOKEN_AGE=60
 
 ## 📖 Usage
 
+### 🏠 홈캠-뷰어 연결 플로우
+
+#### **홈캠 모드 (Camera Mode)**
+```typescript
+// 1. 앱 실행 시 자동으로 연결 대기 상태
+// 2. 연결 코드 생성
+import { useCameraConnection } from '@/features/connection/hooks/useCameraConnection';
+
+const [connectionState, connectionActions] = useCameraConnection(cameraId, cameraName);
+
+// QR/PIN 코드 생성
+const connectionCode = await connectionActions.generatePinCode();
+// 결과: "123456" (6자리 PIN)
+
+// QR 코드 데이터 (JSON 형태)
+const qrData = {
+  type: 'MIMO_CAMERA',
+  cameraId: 'MIMO_123456789',
+  cameraName: '프로페셔널 홈캠',
+  pinCode: '123456',
+  connectionId: '123456',
+  timestamp: 1640995200000,
+  version: '1.0',
+  expiresAt: 1640995800000  // 10분 후 만료
+};
+```
+
+#### **뷰어 모드 (Viewer Mode)**
+```typescript
+// 1. QR 코드 스캔
+import { ViewerQRScanScreen } from '@/features/viewer/screens/ViewerQRScanScreen';
+
+// QR 스캔 후 자동 연결
+const handleQRScanned = async (qrData: string) => {
+  const connectionInfo = JSON.parse(qrData);
+  
+  // 만료 시간 검증
+  if (Date.now() > connectionInfo.expiresAt) {
+    throw new Error('만료된 QR 코드입니다.');
+  }
+  
+  // 홈캠과 연결
+  await connectToCamera(connectionInfo);
+};
+
+// 2. PIN 입력
+import { ViewerPinCodeScreen } from '@/features/viewer/screens/ViewerPinCodeScreen';
+
+// PIN 입력 후 연결
+const handlePinEntered = async (pin: string) => {
+  // PIN 검증 및 연결
+  const result = await connectionService.connectWithPin(pin);
+  
+  if (result.success) {
+    // 라이브 스트림으로 이동
+    navigation.navigate('LiveStream', {
+      cameraId: result.connectionId,
+      cameraName: result.cameraName
+    });
+  }
+};
+```
+
 ### 🔐 Authentication
 
 ```typescript
@@ -211,53 +299,78 @@ const registerResult = await authService.register({
 await authService.logout();
 ```
 
-### 📹 Camera Management
+### 📹 Camera & Streaming
 
 ```typescript
-import { cameraService } from './services/cameraService';
+import { streamingService } from '@/shared/services/core/streamingService';
 
-// 카메라 목록 조회
-const cameras = await cameraService.getCameras();
+// WebSocket 연결 (자동으로 관리됨)
+await streamingService.connect();
 
-// 새 카메라 등록
-const newCamera = await cameraService.createCamera({
-  name: 'Living Room Camera',
-  location: 'Living Room',
-  settings: {
-    resolution: '720p',
-    frameRate: 30,
-    quality: 'medium'
-  }
+// 홈캠 모드: 스트림 준비
+await streamingService.startStream(cameraId, viewerId);
+
+// 뷰어 모드: 스트림 참여
+await streamingService.joinStream(cameraId, viewerId);
+
+// 실시간 이벤트 처리
+streamingService.addEventListener('stream_started', (data) => {
+  console.log('스트림 시작:', data);
 });
 
-// 카메라 설정 업데이트
-await cameraService.updateCameraSettings(cameraId, {
-  resolution: '1080p',
-  motionDetection: {
-    enabled: true,
-    sensitivity: 'high'
-  }
+streamingService.addEventListener('viewer_joined', (data) => {
+  console.log('뷰어 참여:', data);
+});
+
+streamingService.addEventListener('websocket_connected', (data) => {
+  console.log('WebSocket 연결됨:', data);
 });
 ```
 
-### 🎥 Streaming
+### 📱 QR Code & PIN Management
 
 ```typescript
-import { streamingService } from './services/streamingService';
+import { QRCodeGeneratorScreen } from '@/features/camera/screens/QRCodeGeneratorScreen';
+import { ViewerQRScanScreen } from '@/features/viewer/screens/ViewerQRScanScreen';
 
-// WebSocket 연결
-await streamingService.connect();
+// QR 코드 생성 (홈캠)
+const generateQRCode = async () => {
+  const pin = await connectionActions.generatePinCode();
+  const qrData = {
+    type: 'MIMO_CAMERA',
+    cameraId,
+    cameraName,
+    pinCode: pin,
+    connectionId: pin,
+    timestamp: Date.now(),
+    version: '1.0',
+    expiresAt: Date.now() + (10 * 60 * 1000) // 10분 후 만료
+  };
+  
+  return JSON.stringify(qrData);
+};
 
-// 스트림 시작 (홈캠 모드)
-await streamingService.startStream(cameraId, viewerId);
-
-// 스트림 참여 (뷰어 모드)
-await streamingService.joinStream(cameraId, viewerId);
-
-// 이벤트 리스너
-streamingService.addEventListener('stream_started', (data) => {
-  console.log('Stream started:', data);
-});
+// QR 코드 스캔 (뷰어)
+const processQRCode = async (qrData: string) => {
+  try {
+    const connectionInfo = JSON.parse(qrData);
+    
+    // MIMO QR 코드 검증
+    if (connectionInfo.type !== 'MIMO_CAMERA') {
+      throw new Error('MIMO 카메라 QR 코드가 아닙니다.');
+    }
+    
+    // 만료 시간 검증
+    if (Date.now() > connectionInfo.expiresAt) {
+      throw new Error('만료된 QR 코드입니다.');
+    }
+    
+    // 연결 시작
+    await connectToCamera(connectionInfo);
+  } catch (error) {
+    console.error('QR 코드 처리 실패:', error);
+  }
+};
 ```
 
 ### 🎯 Motion Detection
