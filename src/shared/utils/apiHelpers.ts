@@ -240,16 +240,4 @@ export const validateAPIResponse = <T>(
     return response.data;
 };
 
-// Mock 데이터 생성 헬퍼
-export const createMockResponse = <T>(data: T): APIResponse<T> => ({
-    ok: true,
-    data,
-});
-
-export const createMockError = (message: string, code?: string): APIResponse => ({
-    ok: false,
-    error: {
-        code: code || 'MOCK_ERROR',
-        message,
-    },
-}); 
+// Mock 데이터 생성 헬퍼 제거됨 - 실제 API만 사용 

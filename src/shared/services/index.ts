@@ -4,4 +4,8 @@
 export * from '@/shared/services/api/api';
 
 // Core Services  
-export * from './core'; 
+export * from './core';
+
+// Domain Services
+export { CameraService } from './CameraService';
+export { SettingsService } from './SettingsService'; 

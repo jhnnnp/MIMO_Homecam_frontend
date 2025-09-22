@@ -217,6 +217,7 @@ class ApiClient {
 
     private createAxiosInstance(): AxiosInstance {
         return axios.create({
+            // 초기 baseURL은 임시 값으로 두고, 요청 시마다 최신값으로 동기화
             baseURL: getApiBaseUrl(),
             timeout: 10000,
             headers: {
@@ -229,6 +230,14 @@ class ApiClient {
         // 요청 인터셉터
         this.client.interceptors.request.use(
             async (config) => {
+                // 항상 최신 API Base URL을 반영 (초기값이 localhost로 고정되는 문제 방지)
+                try {
+                    const currentBaseUrl = getApiBaseUrl();
+                    if (currentBaseUrl && config.baseURL !== currentBaseUrl) {
+                        config.baseURL = currentBaseUrl;
+                    }
+                } catch { /* ignore */ }
+
                 let token = await this.tokenManager.getAccessToken();
 
                 if (token) {
