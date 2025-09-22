@@ -4,7 +4,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { withErrorHandling, createValidationError, ErrorType } from '../../../shared/utils/errorHandler';
 import { streamingService } from '../../../shared/services/core/streamingService';
 import config from '@/app/config';
-import cameraMockData from '../mocks/cameraData.json';
+// import cameraMockData from '../mocks/cameraData.json'; // Mock 데이터 사용 안함
 
 // 카메라 서비스 로거
 const cameraLogger = createLogger('CameraService');
@@ -149,18 +149,8 @@ class CameraService {
 
                 return response;
             } catch (error) {
-                cameraLogger.warn('API call failed, using mock data');
-
-                // Mock 데이터 반환
-                const mockCameras = cameraMockData as Camera[];
-                mockCameras.forEach(camera => {
-                    this.cameras.set(camera.id, camera);
-                });
-
-                return {
-                    ok: true,
-                    data: mockCameras
-                };
+                cameraLogger.error('API call failed:', error);
+                throw error; // Mock 데이터 대신 에러를 그대로 던짐
             }
         }, { operation: 'get_cameras' });
     }

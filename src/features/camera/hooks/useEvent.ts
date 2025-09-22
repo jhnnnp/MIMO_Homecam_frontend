@@ -528,36 +528,8 @@ export const useEvents = (filters?: EventFilters) => {
                 logger.hook('useEvents', 'fetch', '성공', { dataCount: response.data?.length });
                 return response.data;
             } catch (error) {
-                logger.hookError('useEvents', 'fetch', '오류 발생, Mock 데이터 사용', error instanceof Error ? error : undefined);
-                // Mock 데이터 반환
-                return [
-                    {
-                        id: 1,
-                        cameraId: 1,
-                        cameraName: "거실 카메라",
-                        type: "motion",
-                        startedAt: new Date().toISOString(),
-                        endedAt: new Date(Date.now() + 15000).toISOString(),
-                        isPinned: false,
-                        score: 0.85,
-                        metadata: { confidence: 0.85, objectType: "person" },
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    },
-                    {
-                        id: 2,
-                        cameraId: 2,
-                        cameraName: "현관 카메라",
-                        type: "motion",
-                        startedAt: new Date(Date.now() - 300000).toISOString(),
-                        endedAt: new Date(Date.now() - 285000).toISOString(),
-                        isPinned: true,
-                        score: 0.92,
-                        metadata: { confidence: 0.92, objectType: "person" },
-                        createdAt: new Date(Date.now() - 300000).toISOString(),
-                        updatedAt: new Date(Date.now() - 285000).toISOString(),
-                    }
-                ];
+                logger.hookError('useEvents', 'fetch', 'API 호출 실패', error instanceof Error ? error : undefined);
+                throw error; // Mock 데이터 대신 에러를 그대로 던짐
             }
         },
         staleTime: 2 * 60 * 1000, // 2분

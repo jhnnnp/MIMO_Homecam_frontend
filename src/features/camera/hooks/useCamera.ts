@@ -516,32 +516,8 @@ export const useCameras = () => {
                 logger.hook('useCameras', 'fetch', '성공', { dataCount: response.data?.length });
                 return response.data;
             } catch (error) {
-                logger.hookError('useCameras', 'fetch', '오류 발생, Mock 데이터 사용', error instanceof Error ? error : undefined);
-                // Mock 데이터 반환
-                return [
-                    {
-                        id: 1,
-                        userId: 1,
-                        name: "거실 카메라",
-                        location: "거실",
-                        isOnline: true,
-                        lastHeartbeat: new Date().toISOString(),
-                        metadata: { resolution: "1080p", fps: 30 },
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    },
-                    {
-                        id: 2,
-                        userId: 1,
-                        name: "현관 카메라",
-                        location: "현관",
-                        isOnline: true,
-                        lastHeartbeat: new Date().toISOString(),
-                        metadata: { resolution: "720p", fps: 25 },
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString(),
-                    }
-                ];
+                logger.hookError('useCameras', 'fetch', 'API 호출 실패', error instanceof Error ? error : undefined);
+                throw error; // Mock 데이터 대신 에러를 그대로 던짐
             }
         },
         staleTime: 5 * 60 * 1000, // 5분

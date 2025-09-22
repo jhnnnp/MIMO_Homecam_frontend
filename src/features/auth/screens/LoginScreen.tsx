@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -24,29 +24,26 @@ import Toast from 'react-native-toast-message';
 import { useAuthStore } from '@/shared/stores/authStore';
 // 실제 앱에서는 이 컴포넌트들을 별도 파일로 분리하여 관리하는 것이 좋습니다.
 // import { Button, TextField, Card } from '@/features/../shared/components';
-// import { colors, typography, spacing, radius, elevation } from '@/design/tokens';
+// 
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// MIMO 로고 기반 따뜻한 컬러 시스템
+// 홈캠 목록과 일치하는 iOS 스타일 색상 팔레트
 const mimoColors = {
-    primary: '#607A78',
-    primaryLight: '#D9E0DF',
-    accent: '#F5C572',
-    background: '#FBF9F4',
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
     surface: '#FFFFFF',
-    surfaceAlt: '#F7F4EF',
-    text: '#3A3F47',
-    textSecondary: '#7A8089',
+    text: '#000000',
+    textSecondary: '#8E8E93',
     textOnPrimary: '#FFFFFF',
-    success: '#58A593',
-    error: '#D97373',
-    warning: '#E6A556',
-    divider: '#EAE6DD',
-    border: '#EAE6DD',
-    shadow: 'rgba(96, 122, 120, 0.15)',
-    focusRing: '#607A78', // 포커스 색상을 primary로 변경
+    border: '#C6C6C8',
+    divider: '#C6C6C8',
+    shadow: 'rgba(0, 0, 0, 0.1)',
+    focusRing: '#007AFF',
 };
 
 // Zod 스키마 정의
@@ -65,6 +62,10 @@ export default function LoginScreen({ navigation }: any) {
     // 입력 필드 값 추적을 위한 상태
     const [emailValue, setEmailValue] = useState('');
     const [passwordValue, setPasswordValue] = useState('');
+
+    // TextInput ref 추가 - 포커스 관리를 위해
+    const emailInputRef = useRef<TextInput>(null);
+    const passwordInputRef = useRef<TextInput>(null);
 
     const {
         control,
@@ -112,23 +113,20 @@ export default function LoginScreen({ navigation }: any) {
         <>
             <StatusBar barStyle="dark-content" backgroundColor={mimoColors.background} />
             <View style={styles.container}>
-                <LinearGradient
-                    colors={[mimoColors.background, mimoColors.surfaceAlt, '#F9F6F0']}
-                    style={styles.gradientBackground}
-                />
-                <View style={styles.floatingElement1} />
-                <View style={styles.floatingElement2} />
-                <View style={styles.floatingElement3} />
 
                 <SafeAreaView style={styles.safeArea}>
                     <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                         style={styles.keyboardAvoidingView}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                     >
                         <ScrollView
                             contentContainerStyle={styles.scrollContainer}
                             showsVerticalScrollIndicator={false}
-                            keyboardShouldPersistTaps="handled"
+                            keyboardShouldPersistTaps="always"
+                            keyboardDismissMode="none"
+                            bounces={false}
+                            scrollEnabled={true}
                         >
                             <View style={styles.headerSection}>
                                 <View style={styles.logoContainer}>
@@ -148,136 +146,176 @@ export default function LoginScreen({ navigation }: any) {
 
                             <View style={styles.formSection}>
                                 <View style={styles.formCard}>
-                                    <LinearGradient
-                                        colors={['rgba(255, 255, 255, 0.95)', 'rgba(251, 249, 244, 0.9)']}
-                                        style={styles.formSurface}
-                                    >
-                                        <View style={styles.formHeader}>
-                                            <Text style={styles.formSubtitle}>{getDynamicTitle()}</Text>
-                                        </View>
-                                        <View style={styles.formContent}>
-                                            <Controller
-                                                control={control}
-                                                name="email"
-                                                render={({ field: { onChange, onBlur, value } }) => (
-                                                    <View style={styles.inputGroup}>
-                                                        <Text style={styles.inputLabel}>이메일</Text>
-                                                        <View style={[
+                                    <View style={styles.formHeader}>
+                                        <Text style={styles.formSubtitle}>{getDynamicTitle()}</Text>
+                                    </View>
+                                    <View style={styles.formContent}>
+                                        <Controller
+                                            control={control}
+                                            name="email"
+                                            render={({ field: { onChange, onBlur, value } }) => (
+                                                <View style={styles.inputGroup}>
+                                                    <Text style={styles.inputLabel}>이메일</Text>
+                                                    <Pressable
+                                                        style={[
                                                             styles.inputFieldContainer,
                                                             focusedField === 'email' && styles.inputFieldFocused,
                                                             errors.email && styles.inputFieldError
-                                                        ]}>
-                                                            <Ionicons name="mail-outline" size={20} color={mimoColors.primary} style={styles.inputIcon} />
-                                                            <TextInput
-                                                                placeholder="이메일을 입력해 주세요"
-                                                                value={value}
-                                                                onChangeText={(text) => {
-                                                                    onChange(text);
-                                                                    setEmailValue(text);
-                                                                }}
-                                                                onFocus={() => setFocusedField('email')}
-                                                                onBlur={() => { onBlur(); setFocusedField(null); }}
-                                                                keyboardType="email-address"
-                                                                autoCapitalize="none"
-                                                                style={styles.enhancedInput}
-                                                                placeholderTextColor={mimoColors.textSecondary}
-                                                            />
-                                                        </View>
-                                                        {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
-                                                    </View>
-                                                )}
-                                            />
+                                                        ]}
+                                                        onPress={() => {
+                                                            emailInputRef.current?.focus();
+                                                        }}
+                                                    >
+                                                        <Ionicons name="mail-outline" size={20} color={mimoColors.primary} style={styles.inputIcon} />
+                                                        <TextInput
+                                                            ref={emailInputRef}
+                                                            placeholder="이메일을 입력해 주세요"
+                                                            value={value || ''}
+                                                            onChangeText={(text) => {
+                                                                onChange(text);
+                                                                setEmailValue(text);
+                                                            }}
+                                                            onFocus={() => {
+                                                                setFocusedField('email');
+                                                            }}
+                                                            onBlur={() => {
+                                                                // 약간의 지연을 두어 다른 요소로의 포커스 이동 시간을 줍니다
+                                                                setTimeout(() => {
+                                                                    onBlur();
+                                                                    setFocusedField(null);
+                                                                }, 100);
+                                                            }}
+                                                            keyboardType="email-address"
+                                                            autoCapitalize="none"
+                                                            autoComplete="email"
+                                                            autoCorrect={false}
+                                                            textContentType="emailAddress"
+                                                            returnKeyType="next"
+                                                            onSubmitEditing={() => passwordInputRef.current?.focus()}
+                                                            blurOnSubmit={false}
+                                                            editable={!isLoading}
+                                                            style={styles.enhancedInput}
+                                                            placeholderTextColor={mimoColors.textSecondary}
+                                                            accessibilityLabel="이메일 입력"
+                                                            accessibilityHint="이메일 주소를 입력하세요"
+                                                        />
+                                                    </Pressable>
+                                                    {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+                                                </View>
+                                            )}
+                                        />
 
-                                            <Controller
-                                                control={control}
-                                                name="password"
-                                                render={({ field: { onChange, onBlur, value } }) => (
-                                                    <View style={styles.inputGroup}>
-                                                        <Text style={styles.inputLabel}>비밀번호</Text>
-                                                        <View style={[
+                                        <Controller
+                                            control={control}
+                                            name="password"
+                                            render={({ field: { onChange, onBlur, value } }) => (
+                                                <View style={styles.inputGroup}>
+                                                    <Text style={styles.inputLabel}>비밀번호</Text>
+                                                    <Pressable
+                                                        style={[
                                                             styles.inputFieldContainer,
                                                             focusedField === 'password' && styles.inputFieldFocused,
                                                             errors.password && styles.inputFieldError
-                                                        ]}>
-                                                            <Ionicons name="lock-closed-outline" size={20} color={mimoColors.primary} style={styles.inputIcon} />
-                                                            <TextInput
-                                                                placeholder="비밀번호를 입력해 주세요"
-                                                                value={value}
-                                                                onChangeText={(text) => {
-                                                                    onChange(text);
-                                                                    setPasswordValue(text);
-                                                                }}
-                                                                onFocus={() => setFocusedField('password')}
-                                                                onBlur={() => { onBlur(); setFocusedField(null); }}
-                                                                secureTextEntry={!isPasswordVisible}
-                                                                style={styles.enhancedInput}
-                                                                placeholderTextColor={mimoColors.textSecondary}
-                                                            />
-                                                            <TouchableOpacity
-                                                                onPress={() => setIsPasswordVisible(!isPasswordVisible)}
-                                                                style={styles.passwordToggle}
-                                                            >
-                                                                <Ionicons name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'} size={20} color={mimoColors.textSecondary} />
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                        {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
-                                                    </View>
-                                                )}
-                                            />
+                                                        ]}
+                                                        onPress={() => {
+                                                            passwordInputRef.current?.focus();
+                                                        }}
+                                                    >
+                                                        <Ionicons name="lock-closed-outline" size={20} color={mimoColors.primary} style={styles.inputIcon} />
+                                                        <TextInput
+                                                            ref={passwordInputRef}
+                                                            placeholder="비밀번호를 입력해 주세요"
+                                                            value={value || ''}
+                                                            onChangeText={(text) => {
+                                                                onChange(text);
+                                                                setPasswordValue(text);
+                                                            }}
+                                                            onFocus={() => {
+                                                                setFocusedField('password');
+                                                            }}
+                                                            onBlur={() => {
+                                                                // 약간의 지연을 두어 다른 요소로의 포커스 이동 시간을 줍니다
+                                                                setTimeout(() => {
+                                                                    onBlur();
+                                                                    setFocusedField(null);
+                                                                }, 100);
+                                                            }}
+                                                            secureTextEntry={!isPasswordVisible}
+                                                            autoCapitalize="none"
+                                                            autoComplete="password"
+                                                            autoCorrect={false}
+                                                            textContentType="password"
+                                                            returnKeyType="done"
+                                                            onSubmitEditing={handleSubmit(onLogin)}
+                                                            editable={!isLoading}
+                                                            style={styles.enhancedInput}
+                                                            placeholderTextColor={mimoColors.textSecondary}
+                                                            accessibilityLabel="비밀번호 입력"
+                                                            accessibilityHint="비밀번호를 입력하세요"
+                                                        />
+                                                        <TouchableOpacity
+                                                            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                                                            style={styles.passwordToggle}
+                                                            accessibilityLabel={isPasswordVisible ? "비밀번호 숨기기" : "비밀번호 보기"}
+                                                            accessibilityRole="button"
+                                                            disabled={isLoading}
+                                                        >
+                                                            <Ionicons name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'} size={20} color={mimoColors.textSecondary} />
+                                                        </TouchableOpacity>
+                                                    </Pressable>
+                                                    {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+                                                </View>
+                                            )}
+                                        />
 
-                                            <TouchableOpacity
-                                                onPress={() => Toast.show({ type: 'info', text1: '준비 중인 기능입니다.' })}
-                                                style={styles.forgotPasswordContainer}
-                                            >
-                                                <Text style={styles.forgotPasswordText}>비밀번호를 잊으셨나요?</Text>
-                                            </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => Toast.show({ type: 'info', text1: '준비 중인 기능입니다.' })}
+                                            style={styles.forgotPasswordContainer}
+                                        >
+                                            <Text style={styles.forgotPasswordText}>비밀번호를 잊으셨나요?</Text>
+                                        </TouchableOpacity>
+
+                                        <Pressable
+                                            onPress={handleSubmit(onLogin)}
+                                            disabled={isLoading}
+                                            style={({ pressed }) => [
+                                                styles.loginButtonContainer,
+                                                (isLoading) && styles.loginButtonDisabled,
+                                                pressed && !isLoading && styles.loginButtonPressed,
+                                            ]}
+                                        >
+                                            <View style={styles.loginButton}>
+                                                {isLoading ? (
+                                                    <ActivityIndicator size="small" color={mimoColors.textOnPrimary} />
+                                                ) : (
+                                                    <Text style={styles.loginButtonText}>로그인</Text>
+                                                )}
+                                            </View>
+                                        </Pressable>
+
+                                        <View style={styles.googleLoginSection}>
+                                            <View style={styles.dividerContainer}>
+                                                <View style={styles.divider} />
+                                                <Text style={styles.dividerText}>또는</Text>
+                                                <View style={styles.divider} />
+                                            </View>
 
                                             <Pressable
-                                                onPress={handleSubmit(onLogin)}
-                                                disabled={isLoading}
+                                                onPress={() => Toast.show({ type: 'info', text1: '준비 중인 기능입니다.' })}
                                                 style={({ pressed }) => [
-                                                    styles.loginButtonContainer,
-                                                    (isLoading) && styles.loginButtonDisabled,
-                                                    pressed && !isLoading && styles.loginButtonPressed,
+                                                    styles.googleButton,
+                                                    pressed && styles.googleButtonPressed
                                                 ]}
                                             >
-                                                <LinearGradient
-                                                    colors={[mimoColors.primary, '#4a615f']}
-                                                    style={styles.loginButton}
-                                                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                                                >
-                                                    {isLoading ? (
-                                                        <ActivityIndicator size="small" color={mimoColors.textOnPrimary} />
-                                                    ) : (
-                                                        <Text style={styles.loginButtonText}>로그인</Text>
-                                                    )}
-                                                </LinearGradient>
-                                            </Pressable>
-
-                                            <View style={styles.googleLoginSection}>
-                                                <View style={styles.dividerContainer}>
-                                                    <View style={styles.divider} />
-                                                    <Text style={styles.dividerText}>또는</Text>
-                                                    <View style={styles.divider} />
-                                                </View>
-
-                                                <Pressable
-                                                    onPress={() => Toast.show({ type: 'info', text1: '준비 중인 기능입니다.' })}
-                                                    style={({ pressed }) => [
-                                                        styles.googleButton,
-                                                        pressed && styles.googleButtonPressed
-                                                    ]}
-                                                >
-                                                    <View style={styles.googleButtonContent}>
-                                                        <View style={styles.googleIconContainer}>
-                                                            <Ionicons name="logo-google" size={20} color="#DB4437" />
-                                                        </View>
-                                                        <Text style={styles.googleButtonText}>Google로 계속하기</Text>
+                                                <View style={styles.googleButtonContent}>
+                                                    <View style={styles.googleIconContainer}>
+                                                        <Ionicons name="logo-google" size={20} color="#DB4437" />
                                                     </View>
-                                                </Pressable>
-                                            </View>
+                                                    <Text style={styles.googleButtonText}>Google로 계속하기</Text>
+                                                </View>
+                                            </Pressable>
                                         </View>
-                                    </LinearGradient>
+                                    </View>
                                 </View>
                             </View>
 
@@ -299,55 +337,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: mimoColors.background,
-    },
-    gradientBackground: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-    },
-    floatingElement1: {
-        position: 'absolute',
-        top: 60,
-        right: -15,
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: mimoColors.accent + '25',
-        shadowColor: mimoColors.accent,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-    floatingElement2: {
-        position: 'absolute',
-        top: 200,
-        left: -25,
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        backgroundColor: mimoColors.primary + '20',
-        shadowColor: mimoColors.primary,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        elevation: 6,
-    },
-    floatingElement3: {
-        position: 'absolute',
-        bottom: 180,
-        right: 40,
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        backgroundColor: mimoColors.accent + '35',
-        shadowColor: mimoColors.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
     },
     safeArea: {
         flex: 1,
@@ -408,9 +397,9 @@ const styles = StyleSheet.create({
     brandAccent: {
         width: 70,
         height: 5,
-        backgroundColor: mimoColors.accent,
+        backgroundColor: mimoColors.primary,
         borderRadius: 3,
-        shadowColor: mimoColors.accent,
+        shadowColor: mimoColors.primary,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.35,
         shadowRadius: 6,
@@ -420,19 +409,15 @@ const styles = StyleSheet.create({
         // paddingBottom: 20,
     },
     formCard: {
-        backgroundColor: 'transparent',
-        borderRadius: 20,
-        shadowColor: mimoColors.shadow,
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.12,
-        shadowRadius: 20,
-        elevation: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
-    },
-    formSurface: {
+        backgroundColor: mimoColors.surface,
+        borderRadius: 16,
         padding: 24,
-        borderRadius: 20,
+        marginHorizontal: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
     },
     formHeader: {
         alignItems: 'center',
@@ -470,18 +455,14 @@ const styles = StyleSheet.create({
         backgroundColor: mimoColors.surface,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: mimoColors.divider,
+        borderColor: mimoColors.border,
         paddingHorizontal: 14,
-        paddingVertical: 4,
-        shadowColor: mimoColors.shadow,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 3,
-        elevation: 1,
+        paddingVertical: 2,
+        minHeight: 52,
     },
     inputFieldFocused: {
-        borderColor: mimoColors.focusRing,
-        shadowColor: mimoColors.focusRing,
+        borderColor: mimoColors.primary,
+        shadowColor: mimoColors.primary,
         shadowOpacity: 0.15,
         shadowRadius: 6,
         elevation: 3,
@@ -494,10 +475,13 @@ const styles = StyleSheet.create({
     },
     enhancedInput: {
         flex: 1,
-        fontSize: 15,
+        fontSize: 16,
         color: mimoColors.text,
         paddingVertical: 12,
         fontWeight: '500',
+        textAlignVertical: 'center',
+        includeFontPadding: false,
+        minHeight: 44, // 터치 영역 보장
     },
     passwordToggle: {
         padding: 8,
@@ -521,26 +505,28 @@ const styles = StyleSheet.create({
     loginButtonContainer: {
         borderRadius: 12,
         overflow: 'hidden',
-        shadowColor: mimoColors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        elevation: 4,
-        marginTop: 0,
+        backgroundColor: mimoColors.primary,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+        marginTop: 8,
         marginBottom: 0,
     },
     loginButtonDisabled: {
-        opacity: 0.7,
+        opacity: 0.6,
     },
-    loginButtonPressed: { // 눌렸을 때 효과
+    loginButtonPressed: {
         transform: [{ translateY: 1 }],
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.05,
     },
     loginButton: {
-        paddingVertical: 12,
+        paddingVertical: 14,
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 48,
+        backgroundColor: mimoColors.primary,
     },
     loginButtonText: {
         fontSize: 15,
@@ -585,7 +571,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     googleButtonPressed: {
-        backgroundColor: mimoColors.surfaceAlt,
+        backgroundColor: mimoColors.background,
         transform: [{ translateY: 1 }],
     },
     googleButtonContent: {

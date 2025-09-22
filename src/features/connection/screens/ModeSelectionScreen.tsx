@@ -1,4 +1,17 @@
 import React, { useState, useCallback } from 'react';
+
+// 홈캠 목록과 일치하는 iOS 스타일 색상 팔레트
+const SCREEN_COLORS = {
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
+} as const;
 import {
     View,
     Text,
@@ -11,10 +24,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
+
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/app/navigation/AppNavigator';
 import Button from '@/shared/components/ui/Button';
+import { typography, radius } from '@/design/tokens';
 
 // HapticFeedback 안전한 import
 let Haptics: any = null;
@@ -56,7 +70,7 @@ const ModeCard: React.FC<ModeCardProps> = ({
             style={[
                 styles.modeCard,
                 {
-                    borderColor: isSelected ? colors.primary : colors.divider,
+                    borderColor: isSelected ? SCREEN_COLORS.primary : SCREEN_COLORS.divider,
                     borderWidth: isSelected ? 2 : 1,
                 }
             ]}
@@ -66,7 +80,7 @@ const ModeCard: React.FC<ModeCardProps> = ({
             <LinearGradient
                 colors={isSelected
                     ? [gradientColors[0] + '15', gradientColors[1] + '08']
-                    : [colors.surface, colors.surfaceAlt]
+                    : [SCREEN_COLORS.surface, SCREEN_COLORS.surfaceAlt]
                 }
                 style={styles.modeCardGradient}
                 start={{ x: 0, y: 0 }}
@@ -76,7 +90,7 @@ const ModeCard: React.FC<ModeCardProps> = ({
                 <View style={styles.cardHeader}>
                     <View style={styles.iconSection}>
                         <LinearGradient
-                            colors={isSelected ? gradientColors : [colors.primary + '20', colors.primary + '10']}
+                            colors={isSelected ? gradientColors : [SCREEN_COLORS.primary + '20', SCREEN_COLORS.primary + '10']}
                             style={styles.iconContainer}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
@@ -84,12 +98,12 @@ const ModeCard: React.FC<ModeCardProps> = ({
                             <Ionicons
                                 name={icon as any}
                                 size={28}
-                                color={isSelected ? colors.surface : colors.primary}
+                                color={isSelected ? SCREEN_COLORS.surface : SCREEN_COLORS.primary}
                             />
                         </LinearGradient>
                         {isSelected && (
                             <View style={styles.selectedIndicator}>
-                                <Ionicons name="checkmark" size={14} color={colors.surface} />
+                                <Ionicons name="checkmark" size={14} color={SCREEN_COLORS.surface} />
                             </View>
                         )}
                     </View>
@@ -120,13 +134,13 @@ const ModeCard: React.FC<ModeCardProps> = ({
                                 {
                                     backgroundColor: isSelected
                                         ? feature.color + '20'
-                                        : colors.surfaceAlt
+                                        : SCREEN_COLORS.surfaceAlt
                                 }
                             ]}>
                                 <Ionicons
                                     name={feature.icon as any}
                                     size={16}
-                                    color={isSelected ? feature.color : colors.textSecondary}
+                                    color={isSelected ? feature.color : SCREEN_COLORS.textSecondary}
                                 />
                             </View>
                             <Text style={[styles.featureText, isSelected && styles.featureTextSelected]}>
@@ -175,7 +189,8 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
                 const response = await api.get('/cameras');
                 console.log('[ModeSelection] Camera API test response:', response.data);
             } catch (error) {
-                console.error('[ModeSelection] Camera API test failed:', error);
+                // 개발 시 네트워크 미설정으로 실패할 수 있으므로 경고로만 기록
+                console.warn('[ModeSelection] Camera API test failed (non-blocking):', error);
             }
         } else if (selectedMode === 'camera') {
             navigation.replace('CameraHome');
@@ -185,29 +200,29 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
     }, [selectedMode, navigation]);
 
     const viewerFeatures = [
-        { icon: 'videocam-outline', text: '실시간 영상 확인', color: colors.primary },
-        { icon: 'play-circle-outline', text: '저장된 영상 재생', color: colors.primary },
-        { icon: 'notifications-outline', text: '이벤트 알림 수신', color: colors.primary },
+        { icon: 'videocam-outline', text: '실시간 영상 확인', color: SCREEN_COLORS.primary },
+        { icon: 'play-circle-outline', text: '저장된 영상 재생', color: SCREEN_COLORS.primary },
+        { icon: 'notifications-outline', text: '이벤트 알림 수신', color: SCREEN_COLORS.primary },
     ];
 
     const cameraFeatures = [
-        { icon: 'radio-button-on', text: '자동 영상 녹화', color: colors.accent },
-        { icon: 'wifi-outline', text: '실시간 영상 전송', color: colors.accent },
-        { icon: 'qr-code-outline', text: '연결 QR 코드', color: colors.accent },
+        { icon: 'radio-button-on', text: '자동 영상 녹화', color: SCREEN_COLORS.accent },
+        { icon: 'wifi-outline', text: '실시간 영상 전송', color: SCREEN_COLORS.accent },
+        { icon: 'qr-code-outline', text: '연결 QR 코드', color: SCREEN_COLORS.accent },
     ];
 
     const websocketFeatures = [
-        { icon: 'wifi-outline', text: '실시간 연결 테스트', color: colors.warning },
-        { icon: 'chatbubble-outline', text: '메시지 송수신', color: colors.warning },
-        { icon: 'analytics-outline', text: '통신 상태 모니터링', color: colors.warning },
+        { icon: 'wifi-outline', text: '실시간 연결 테스트', color: SCREEN_COLORS.warning },
+        { icon: 'chatbubble-outline', text: '메시지 송수신', color: SCREEN_COLORS.warning },
+        { icon: 'analytics-outline', text: '통신 상태 모니터링', color: SCREEN_COLORS.warning },
     ];
 
     return (
         <>
-            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+            <StatusBar barStyle="dark-content" backgroundColor={SCREEN_COLORS.background} />
             <View style={styles.container}>
                 <LinearGradient
-                    colors={[colors.background, colors.surfaceAlt]}
+                    colors={[SCREEN_COLORS.background, SCREEN_COLORS.surfaceAlt]}
                     style={styles.backgroundGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
@@ -227,7 +242,7 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
                                 description="다른 기기의 카메라 영상을 실시간으로 확인하고 녹화된 영상을 재생합니다."
                                 icon="eye-outline"
                                 features={viewerFeatures}
-                                gradientColors={[colors.primary, '#4A5F5D']}
+                                gradientColors={[SCREEN_COLORS.primary, '#4A5F5D']}
                                 onPress={() => handleModeSelect('viewer')}
                                 isSelected={selectedMode === 'viewer'}
                             />
@@ -237,7 +252,7 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
                                 description="이 기기를 카메라로 사용해 영상을 녹화하고 다른 기기로 스트리밍합니다."
                                 icon="camera-outline"
                                 features={cameraFeatures}
-                                gradientColors={[colors.accent, '#E6B85C']}
+                                gradientColors={[SCREEN_COLORS.accent, '#E6B85C']}
                                 onPress={() => handleModeSelect('camera')}
                                 isSelected={selectedMode === 'camera'}
                             />
@@ -247,7 +262,7 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
                                 description="실시간 통신 연결을 테스트하고 메시지 송수신을 확인합니다."
                                 icon="bug-outline"
                                 features={websocketFeatures}
-                                gradientColors={[colors.warning, '#FF9500']}
+                                gradientColors={[SCREEN_COLORS.warning, '#FF9500']}
                                 onPress={() => handleModeSelect('websocket')}
                                 isSelected={selectedMode === 'websocket'}
                                 showDevelopmentBadge={true}
@@ -275,7 +290,7 @@ export default function ModeSelectionScreen({ navigation }: ModeSelectionScreenP
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: SCREEN_COLORS.background,
     },
     backgroundGradient: {
         position: 'absolute',
@@ -294,36 +309,36 @@ const styles = StyleSheet.create({
     },
     header: {
         alignItems: 'center',
-        paddingTop: spacing.md,
-        paddingBottom: spacing.lg,
-        paddingHorizontal: spacing.xl,
+        paddingTop: 16,
+        paddingBottom: 20,
+        paddingHorizontal: 24,
     },
     subtitle: {
         ...typography.h2,
-        color: colors.text,
+        color: SCREEN_COLORS.text,
         textAlign: 'center',
     },
     modeContainer: {
-        paddingHorizontal: spacing.lg,
-        gap: spacing.md,
+        paddingHorizontal: 20,
+        gap: 16,
     },
     modeCard: {
-        borderRadius: radius.xl,
+        borderRadius: 24,
         overflow: 'hidden',
-        backgroundColor: colors.surface,
-        ...elevation['2'],
+        backgroundColor: SCREEN_COLORS.surface,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3,
     },
     modeCardGradient: {
-        padding: spacing.lg,
+        padding: 20,
     },
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.md,
+        marginBottom: 16,
     },
     iconSection: {
         position: 'relative',
-        marginRight: spacing.md,
+        marginRight: 16,
     },
     iconContainer: {
         width: 52,
@@ -339,11 +354,11 @@ const styles = StyleSheet.create({
         width: 20,
         height: 20,
         borderRadius: 10,
-        backgroundColor: colors.primary,
+        backgroundColor: SCREEN_COLORS.primary,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 2,
-        borderColor: colors.surface,
+        borderColor: SCREEN_COLORS.surface,
     },
     titleSection: {
         flex: 1,
@@ -351,35 +366,35 @@ const styles = StyleSheet.create({
     titleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.sm,
-        marginBottom: spacing.xs,
+        gap: 12,
+        marginBottom: 8,
     },
     modeTitle: {
         ...typography.h3,
-        color: colors.text,
+        color: SCREEN_COLORS.text,
     },
     modeTitleSelected: {
-        color: colors.primary,
+        color: SCREEN_COLORS.primary,
     },
     modeDescription: {
         ...typography.bodySm,
-        color: colors.textSecondary,
+        color: SCREEN_COLORS.textSecondary,
         lineHeight: 18,
     },
     modeDescriptionSelected: {
-        color: colors.text,
+        color: SCREEN_COLORS.text,
     },
     featuresSection: {
-        marginTop: spacing.sm,
+        marginTop: 12,
         borderTopWidth: 1,
-        borderTopColor: colors.divider,
-        paddingTop: spacing.md,
-        gap: spacing.sm,
+        borderTopColor: SCREEN_COLORS.divider,
+        paddingTop: 16,
+        gap: 12,
     },
     featureItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.sm,
+        gap: 12,
     },
     featureIcon: {
         width: 24,
@@ -390,29 +405,29 @@ const styles = StyleSheet.create({
     },
     featureText: {
         ...typography.body,
-        color: colors.textSecondary,
+        color: SCREEN_COLORS.textSecondary,
         flex: 1,
     },
     featureTextSelected: {
-        color: colors.text,
+        color: SCREEN_COLORS.text,
         fontWeight: '500',
     },
     continueButtonContainer: {
-        padding: spacing.lg,
-        paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
-        backgroundColor: colors.surface,
+        padding: 20,
+        paddingBottom: Platform.OS === 'ios' ? 24 : 20,
+        backgroundColor: SCREEN_COLORS.surface,
         borderTopWidth: 1,
-        borderTopColor: colors.divider,
+        borderTopColor: SCREEN_COLORS.divider,
     },
     developmentBadge: {
-        backgroundColor: colors.accent,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        borderRadius: radius.sm,
+        backgroundColor: SCREEN_COLORS.accent,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
     },
     developmentText: {
         ...typography.caption,
-        color: colors.surface,
+        color: SCREEN_COLORS.surface,
         fontWeight: '700',
         letterSpacing: 0.5,
     },

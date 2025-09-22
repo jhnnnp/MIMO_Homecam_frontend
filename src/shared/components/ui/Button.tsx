@@ -10,7 +10,7 @@ import {
     Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, radius, motion } from '@/design/tokens';
+import { colors, spacing, radius, motion } from '@/design/tokens';
 
 type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'ghost' | 'destructive';
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
@@ -142,16 +142,17 @@ const styles = StyleSheet.create({
 
     // Text Base
     textBase: {
-        ...typography.body,
+        fontSize: 14,
+        lineHeight: 22,
         fontWeight: '600',
         textAlign: 'center',
     },
     textDisabled: {},
 
     // Text Sizes
-    text_size_sm: { ...typography.bodySm, fontWeight: '600' },
-    text_size_md: { ...typography.body, fontWeight: '600' },
-    text_size_lg: { ...typography.bodyLg, fontWeight: '600' },
+    text_size_sm: { fontSize: 13, lineHeight: 20, fontWeight: '600' },
+    text_size_md: { fontSize: 14, lineHeight: 22, fontWeight: '600' },
+    text_size_lg: { fontSize: 16, lineHeight: 24, fontWeight: '600' },
     text_size_icon: {},
 
     // Text Variants

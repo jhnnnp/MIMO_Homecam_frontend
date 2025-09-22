@@ -10,7 +10,7 @@ import {
     Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, layout, radius, elevation } from '@/design/tokens';
+import { colors, spacing, layout, radius, elevation } from '@/design/tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface AppBarAction {
@@ -72,7 +72,9 @@ export default function AppBar({
     };
 
     const titleStyle: TextStyle = {
-        ...typography.h3,
+        fontSize: 18,
+        lineHeight: 24,
+        fontWeight: '600',
         color: getTextColor(),
         marginLeft: showBackButton ? spacing.md : 0,
         flex: 1,
@@ -170,9 +172,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
     },
     badgeText: {
-        ...typography.caption,
         color: colors.surface,
         fontSize: 10,
+        lineHeight: 12,
         fontWeight: '600',
     },
 }); 

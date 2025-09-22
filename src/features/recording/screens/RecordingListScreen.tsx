@@ -1,3 +1,16 @@
+// 홈캠 목록과 일치하는 iOS 스타일 색상 팔레트
+const SCREEN_COLORS = {
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
+} as const;
+
 import React, { useState, useEffect } from 'react';
 import {
     View,
@@ -10,7 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AppBar from '@/shared/components/layout/AppBar';
-import { colors, spacing, radius, elevation } from '@/design/tokens';
+
 import RecordingList from '@/features/recording/components/RecordingList';
 import { RecordingSession, recordingService } from '@/features/recording/services/recordingService';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -117,11 +130,11 @@ export default function RecordingListScreen({ navigation }: RecordingListScreenP
                 {/* Storage Info */}
                 <View style={styles.storageCard}>
                     <LinearGradient
-                        colors={[colors.surface, colors.surfaceAlt]}
+                        colors={[SCREEN_COLORS.surface, SCREEN_COLORS.surfaceAlt]}
                         style={styles.storageGradient}
                     >
                         <View style={styles.storageHeader}>
-                            <Ionicons name="hardware-chip" size={24} color={colors.primary} />
+                            <Ionicons name="hardware-chip" size={24} color={SCREEN_COLORS.primary} />
                             <Text style={styles.storageTitle}>저장 공간</Text>
                         </View>
 
@@ -138,7 +151,7 @@ export default function RecordingListScreen({ navigation }: RecordingListScreenP
                             style={styles.cleanupButton}
                             onPress={handleCleanupOldRecordings}
                         >
-                            <Ionicons name="trash-outline" size={16} color={colors.error} />
+                            <Ionicons name="trash-outline" size={16} color={SCREEN_COLORS.error} />
                             <Text style={styles.cleanupButtonText}>오래된 파일 정리</Text>
                         </TouchableOpacity>
                     </LinearGradient>
@@ -159,7 +172,7 @@ export default function RecordingListScreen({ navigation }: RecordingListScreenP
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: SCREEN_COLORS.background,
     },
     scrollContainer: {
         flex: 1,
@@ -167,19 +180,19 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+        borderBottomColor: SCREEN_COLORS.border,
     },
     backButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.surface,
+        backgroundColor: SCREEN_COLORS.surface,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: spacing.md,
+        marginRight: 16,
     },
     headerContent: {
         flex: 1,
@@ -187,63 +200,63 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: colors.text,
-        marginBottom: spacing.xs,
+        color: SCREEN_COLORS.text,
+        marginBottom: 8,
     },
     subtitle: {
         fontSize: 14,
-        color: colors.textSecondary,
+        color: SCREEN_COLORS.textSecondary,
     },
     settingsButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.surface,
+        backgroundColor: SCREEN_COLORS.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
     storageCard: {
-        margin: spacing.lg,
-        borderRadius: radius.lg,
-        backgroundColor: colors.surface,
-        ...elevation['2'],
+        margin: 20,
+        borderRadius: 16,
+        backgroundColor: SCREEN_COLORS.surface,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3,
     },
     storageGradient: {
-        padding: spacing.lg,
+        padding: 20,
     },
     storageHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.md,
+        marginBottom: 16,
     },
     storageTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: colors.text,
-        marginLeft: spacing.sm,
+        color: SCREEN_COLORS.text,
+        marginLeft: 12,
     },
     storageInfo: {
-        marginBottom: spacing.md,
+        marginBottom: 16,
     },
     storageText: {
         fontSize: 14,
-        color: colors.textSecondary,
-        marginBottom: spacing.xs,
+        color: SCREEN_COLORS.textSecondary,
+        marginBottom: 8,
     },
     cleanupButton: {
         flexDirection: 'row',
         alignItems: 'center',
         alignSelf: 'flex-start',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        backgroundColor: colors.error + '20',
-        borderRadius: radius.md,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: SCREEN_COLORS.error + '20',
+        borderRadius: 12,
     },
     cleanupButtonText: {
         fontSize: 14,
-        color: colors.error,
+        color: SCREEN_COLORS.error,
         fontWeight: '500',
-        marginLeft: spacing.xs,
+        marginLeft: 8,
     },
     listContainer: {
         flex: 1,

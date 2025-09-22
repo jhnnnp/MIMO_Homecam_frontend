@@ -23,7 +23,7 @@ import {
 } from '@/features/camera/services/motionDetectionService';
 import eventService from '../services/eventService';
 import notificationService from '@/features/settings/services/notificationService';
-import settingsService from '../../settings/services/settingsService';
+import SettingsService from '@/shared/services/SettingsService';
 import { logger, logMotion, logMotionError } from '@/shared/utils/logger';
 
 // ============================================================================
@@ -121,13 +121,16 @@ export const useMotionDetection = (): HookReturn<MotionDetectionState, MotionDet
 
   const syncConfig = useCallback(async () => {
     try {
-      // 설정 서비스에서 사용자 설정 가져오기
-      const userSettings = await settingsService.getMotionDetectionSettings();
+      // 전역 사용자 설정에서 필요한 값 매핑 (Plan A)
+      const core = await SettingsService.getCoreSettings();
+      const custom = await SettingsService.getCustomSettings();
 
-      if (userSettings) {
+      if (core || custom) {
         const updatedConfig: MotionDetectionConfig = {
           ...DEFAULT_CONFIG,
-          ...userSettings,
+          enabled: !!custom?.motion_detection_enabled ?? DEFAULT_CONFIG.enabled,
+          sensitivity: core?.motion_sensitivity === 'high' ? 80 : core?.motion_sensitivity === 'low' ? 30 : 50,
+          // 나머지는 커스텀 키로 확장 여지
         };
 
         // 모션 감지 서비스 설정 업데이트

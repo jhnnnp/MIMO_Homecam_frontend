@@ -18,39 +18,27 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { Button, TextField, Card, AppBar } from '@/features/../shared/components';
-import { colors, typography, spacing, radius, elevation } from '@/design/tokens';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// MIMO 로고 기반 따뜻한 컬러 시스템 (로그인 화면과 동일)
+// 홈캠 목록과 일치하는 iOS 스타일 색상 팔레트
 const mimoColors = {
-    // Core Colors - 로고의 색상을 기반으로 함
-    primary: '#607A78',      // Muted Green: 핵심 상호작용 요소
-    primaryLight: '#D9E0DF', // Primary의 밝은 버전
-    accent: '#F5C572',       // Warm Yellow: 강조, 하이라이트
-
-    // Background & Surface
-    background: '#FBF9F4',   // Cream: 앱 전체 배경
-    surface: '#FFFFFF',      // Pure White: 카드, 모달 등
-    surfaceAlt: '#F7F4EF',   // Slightly darker cream
-
-    // Text Colors
-    text: '#3A3F47',         // Warm Dark Gray: 기본 텍스트
-    textSecondary: '#7A8089', // 보조 텍스트
-    textOnPrimary: '#FFFFFF', // Primary 색상 위의 텍스트
-
-    // Feedback Colors
-    success: '#58A593',      // Muted Teal: 성공 상태
-    error: '#D97373',        // Muted Red: 오류 상태
-    warning: '#E6A556',      // Warm Orange: 경고 상태
-
-    // Neutral & Utility
-    divider: '#EAE6DD',      // Warm Gray: 구분선
-    border: '#EAE6DD',       // 테두리
-    shadow: 'rgba(96, 122, 120, 0.15)', // 그림자
-    focusRing: '#F5C572',    // 포커스 링
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    textOnPrimary: '#FFFFFF',
+    border: '#C6C6C8',
+    divider: '#C6C6C8',
+    shadow: 'rgba(0, 0, 0, 0.1)',
+    focusRing: '#007AFF',
 };
 
 // 개선된 회원가입 폼 스키마
@@ -167,22 +155,6 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
         <>
             <StatusBar barStyle="dark-content" backgroundColor={mimoColors.background} />
             <View style={styles.container}>
-                {/* Warm Gradient Background */}
-                <LinearGradient
-                    colors={[
-                        mimoColors.background,
-                        mimoColors.surfaceAlt,
-                        '#F9F6F0'
-                    ]}
-                    style={styles.gradientBackground}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                />
-
-                {/* Warm Floating Elements */}
-                <View style={styles.floatingElement1} />
-                <View style={styles.floatingElement2} />
-                <View style={styles.floatingElement3} />
 
                 <SafeAreaView style={styles.safeArea}>
                     {/* Enhanced AppBar */}
@@ -220,34 +192,23 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
                                 {/* Enhanced Progress Indicator */}
                                 <View style={styles.progressCard}>
-                                    <LinearGradient
-                                        colors={[
-                                            'rgba(255, 255, 255, 0.9)',
-                                            'rgba(251, 249, 244, 0.8)'
-                                        ]}
-                                        style={styles.progressCardGradient}
-                                    >
-                                        <View style={styles.progressContainer}>
-                                            <View style={styles.progressHeader}>
-                                                <Text style={styles.progressLabel}>진행률</Text>
-                                                <Text style={styles.progressPercentage}>
-                                                    {Math.round(progressPercentage)}%
-                                                </Text>
-                                            </View>
-                                            <View style={styles.progressBarContainer}>
-                                                <View style={styles.progressBarBackground} />
-                                                <LinearGradient
-                                                    colors={[mimoColors.primary, mimoColors.accent]}
-                                                    style={[
-                                                        styles.progressBarFill,
-                                                        { width: `${progressPercentage}%` }
-                                                    ]}
-                                                    start={{ x: 0, y: 0 }}
-                                                    end={{ x: 1, y: 0 }}
-                                                />
-                                            </View>
+                                    <View style={styles.progressContainer}>
+                                        <View style={styles.progressHeader}>
+                                            <Text style={styles.progressLabel}>진행률</Text>
+                                            <Text style={styles.progressPercentage}>
+                                                {Math.round(progressPercentage)}%
+                                            </Text>
                                         </View>
-                                    </LinearGradient>
+                                        <View style={styles.progressBarContainer}>
+                                            <View style={styles.progressBarBackground} />
+                                            <View
+                                                style={[
+                                                    styles.progressBarFill,
+                                                    { width: `${progressPercentage}%` }
+                                                ]}
+                                            />
+                                        </View>
+                                    </View>
                                 </View>
                             </View>
 
@@ -263,434 +224,418 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
                             {/* Enhanced Form Section */}
                             <View style={styles.glassCard}>
-                                <LinearGradient
-                                    colors={[
-                                        'rgba(255, 255, 255, 0.95)',
-                                        'rgba(251, 249, 244, 0.8)'
-                                    ]}
-                                    style={styles.glassSurface}
-                                >
-                                    <View style={styles.formHeader}>
-                                        <Text style={styles.formTitle}>기본 정보</Text>
-                                        <Text style={styles.formSubtitle}>
-                                            계정 생성에 필요한 정보를 입력해주세요
-                                        </Text>
-                                    </View>
+                                <View style={styles.formHeader}>
+                                    <Text style={styles.formTitle}>기본 정보</Text>
+                                    <Text style={styles.formSubtitle}>
+                                        계정 생성에 필요한 정보를 입력해주세요
+                                    </Text>
+                                </View>
 
-                                    <View style={styles.formContent}>
-                                        {/* Email Input */}
-                                        <View style={styles.inputGroup}>
-                                            <Controller
-                                                control={control}
-                                                name="email"
-                                                render={({ field: { onChange, onBlur, value } }) => (
-                                                    <View style={styles.enhancedInputWrapper}>
-                                                        <Text style={styles.inputLabel}>이메일 *</Text>
-                                                        <View style={[
-                                                            styles.inputFieldContainer,
-                                                            focusedField === 'email' && styles.inputFieldFocused,
-                                                            errors.email && styles.inputFieldError
-                                                        ]}>
-                                                            <Ionicons
-                                                                name="mail-outline"
-                                                                size={20}
-                                                                color={mimoColors.primary}
-                                                                style={styles.inputIcon}
-                                                            />
-                                                            <TextInput
-                                                                placeholder="이메일을 입력해 주세요"
-                                                                value={value}
-                                                                onChangeText={onChange}
-                                                                onBlur={() => {
-                                                                    onBlur();
-                                                                    setFocusedField(null);
-                                                                }}
-                                                                onFocus={() => setFocusedField('email')}
-                                                                keyboardType="email-address"
-                                                                autoCapitalize="none"
-                                                                style={styles.enhancedInput}
-                                                                placeholderTextColor={mimoColors.textSecondary}
-                                                            />
-                                                        </View>
-                                                        {errors.email && (
-                                                            <Text style={styles.errorText}>
-                                                                {errors.email.message}
-                                                            </Text>
-                                                        )}
+                                <View style={styles.formContent}>
+                                    {/* Email Input */}
+                                    <View style={styles.inputGroup}>
+                                        <Controller
+                                            control={control}
+                                            name="email"
+                                            render={({ field: { onChange, onBlur, value } }) => (
+                                                <View style={styles.enhancedInputWrapper}>
+                                                    <Text style={styles.inputLabel}>이메일 *</Text>
+                                                    <View style={[
+                                                        styles.inputFieldContainer,
+                                                        focusedField === 'email' && styles.inputFieldFocused,
+                                                        errors.email && styles.inputFieldError
+                                                    ]}>
+                                                        <Ionicons
+                                                            name="mail-outline"
+                                                            size={20}
+                                                            color={mimoColors.primary}
+                                                            style={styles.inputIcon}
+                                                        />
+                                                        <TextInput
+                                                            placeholder="이메일을 입력해 주세요"
+                                                            value={value}
+                                                            onChangeText={onChange}
+                                                            onBlur={() => {
+                                                                onBlur();
+                                                                setFocusedField(null);
+                                                            }}
+                                                            onFocus={() => setFocusedField('email')}
+                                                            keyboardType="email-address"
+                                                            autoCapitalize="none"
+                                                            style={styles.enhancedInput}
+                                                            placeholderTextColor={mimoColors.textSecondary}
+                                                        />
                                                     </View>
-                                                )}
-                                            />
-                                        </View>
-
-                                        {/* Name Input */}
-                                        <View style={styles.inputGroup}>
-                                            <Controller
-                                                control={control}
-                                                name="name"
-                                                render={({ field: { onChange, onBlur, value } }) => (
-                                                    <View style={styles.enhancedInputWrapper}>
-                                                        <Text style={styles.inputLabel}>이름 *</Text>
-                                                        <View style={[
-                                                            styles.inputFieldContainer,
-                                                            focusedField === 'name' && styles.inputFieldFocused,
-                                                            errors.name && styles.inputFieldError
-                                                        ]}>
-                                                            <Ionicons
-                                                                name="person-outline"
-                                                                size={20}
-                                                                color={mimoColors.primary}
-                                                                style={styles.inputIcon}
-                                                            />
-                                                            <TextInput
-                                                                placeholder="이름을 입력해 주세요"
-                                                                value={value}
-                                                                onChangeText={onChange}
-                                                                onBlur={() => {
-                                                                    onBlur();
-                                                                    setFocusedField(null);
-                                                                }}
-                                                                onFocus={() => setFocusedField('name')}
-                                                                autoCapitalize="words"
-                                                                style={styles.enhancedInput}
-                                                                placeholderTextColor={mimoColors.textSecondary}
-                                                            />
-                                                        </View>
-                                                        {errors.name && (
-                                                            <Text style={styles.errorText}>
-                                                                {errors.name.message}
-                                                            </Text>
-                                                        )}
-                                                    </View>
-                                                )}
-                                            />
-                                        </View>
-
-                                        {/* Nickname Input */}
-                                        <View style={styles.inputGroup}>
-                                            <Controller
-                                                control={control}
-                                                name="nickname"
-                                                render={({ field: { onChange, onBlur, value } }) => (
-                                                    <View style={styles.enhancedInputWrapper}>
-                                                        <Text style={styles.inputLabel}>닉네임 *</Text>
-                                                        <View style={[
-                                                            styles.inputFieldContainer,
-                                                            focusedField === 'nickname' && styles.inputFieldFocused,
-                                                            errors.nickname && styles.inputFieldError
-                                                        ]}>
-                                                            <Ionicons
-                                                                name="at-outline"
-                                                                size={20}
-                                                                color={mimoColors.primary}
-                                                                style={styles.inputIcon}
-                                                            />
-                                                            <TextInput
-                                                                placeholder="닉네임을 입력해 주세요"
-                                                                value={value}
-                                                                onChangeText={onChange}
-                                                                onBlur={() => {
-                                                                    onBlur();
-                                                                    setFocusedField(null);
-                                                                }}
-                                                                onFocus={() => setFocusedField('nickname')}
-                                                                autoCapitalize="none"
-                                                                style={styles.enhancedInput}
-                                                                placeholderTextColor={mimoColors.textSecondary}
-                                                            />
-                                                        </View>
-                                                        {errors.nickname && (
-                                                            <Text style={styles.errorText}>
-                                                                {errors.nickname.message}
-                                                            </Text>
-                                                        )}
-                                                    </View>
-                                                )}
-                                            />
-                                        </View>
-
-                                        {/* Password Input */}
-                                        <View style={styles.inputGroup}>
-                                            <Controller
-                                                control={control}
-                                                name="password"
-                                                render={({ field: { onChange, onBlur, value } }) => (
-                                                    <View style={styles.enhancedInputWrapper}>
-                                                        <Text style={styles.inputLabel}>비밀번호 *</Text>
-                                                        <View style={[
-                                                            styles.inputFieldContainer,
-                                                            focusedField === 'password' && styles.inputFieldFocused,
-                                                            errors.password && styles.inputFieldError
-                                                        ]}>
-                                                            <Ionicons
-                                                                name="lock-closed-outline"
-                                                                size={20}
-                                                                color={mimoColors.primary}
-                                                                style={styles.inputIcon}
-                                                            />
-                                                            <TextInput
-                                                                placeholder="비밀번호를 입력해 주세요"
-                                                                value={value}
-                                                                onChangeText={onChange}
-                                                                onBlur={() => {
-                                                                    onBlur();
-                                                                    setFocusedField(null);
-                                                                }}
-                                                                onFocus={() => setFocusedField('password')}
-                                                                secureTextEntry={!showPassword}
-                                                                style={styles.enhancedInput}
-                                                                placeholderTextColor={mimoColors.textSecondary}
-                                                            />
-                                                            <TouchableOpacity
-                                                                onPress={() => setShowPassword(!showPassword)}
-                                                                style={styles.passwordToggle}
-                                                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                                            >
-                                                                <Ionicons
-                                                                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                                                                    size={20}
-                                                                    color={mimoColors.textSecondary}
-                                                                />
-                                                            </TouchableOpacity>
-                                                        </View>
-
-                                                        {/* Password Strength Indicator */}
-                                                        {value && (
-                                                            <View style={styles.passwordStrengthContainer}>
-                                                                <View style={styles.passwordStrengthBar}>
-                                                                    <View style={styles.passwordStrengthBarBackground} />
-                                                                    <View
-                                                                        style={[
-                                                                            styles.passwordStrengthBarFill,
-                                                                            {
-                                                                                width: `${passwordStrength.strength}%`,
-                                                                                backgroundColor: passwordStrength.color
-                                                                            }
-                                                                        ]}
-                                                                    />
-                                                                </View>
-                                                                <Text style={[styles.passwordStrengthText, { color: passwordStrength.color }]}>
-                                                                    {passwordStrength.text}
-                                                                </Text>
-                                                            </View>
-                                                        )}
-
-                                                        <Text style={styles.helperText}>
-                                                            8자 이상, 대소문자, 숫자, 특수문자 포함
+                                                    {errors.email && (
+                                                        <Text style={styles.errorText}>
+                                                            {errors.email.message}
                                                         </Text>
-
-                                                        {errors.password && (
-                                                            <Text style={styles.errorText}>
-                                                                {errors.password.message}
-                                                            </Text>
-                                                        )}
-                                                    </View>
-                                                )}
-                                            />
-                                        </View>
-
-                                        {/* Confirm Password Input */}
-                                        <View style={styles.inputGroup}>
-                                            <Controller
-                                                control={control}
-                                                name="confirmPassword"
-                                                render={({ field: { onChange, onBlur, value } }) => (
-                                                    <View style={styles.enhancedInputWrapper}>
-                                                        <Text style={styles.inputLabel}>비밀번호 확인 *</Text>
-                                                        <View style={[
-                                                            styles.inputFieldContainer,
-                                                            focusedField === 'confirmPassword' && styles.inputFieldFocused,
-                                                            errors.confirmPassword && styles.inputFieldError
-                                                        ]}>
-                                                            <Ionicons
-                                                                name="lock-closed-outline"
-                                                                size={20}
-                                                                color={mimoColors.primary}
-                                                                style={styles.inputIcon}
-                                                            />
-                                                            <TextInput
-                                                                placeholder="비밀번호를 다시 입력해 주세요"
-                                                                value={value}
-                                                                onChangeText={onChange}
-                                                                onBlur={() => {
-                                                                    onBlur();
-                                                                    setFocusedField(null);
-                                                                }}
-                                                                onFocus={() => setFocusedField('confirmPassword')}
-                                                                secureTextEntry={!showConfirmPassword}
-                                                                style={styles.enhancedInput}
-                                                                placeholderTextColor={mimoColors.textSecondary}
-                                                            />
-                                                            <TouchableOpacity
-                                                                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                                                                style={styles.passwordToggle}
-                                                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                                            >
-                                                                <Ionicons
-                                                                    name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                                                                    size={20}
-                                                                    color={mimoColors.textSecondary}
-                                                                />
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                        {errors.confirmPassword && (
-                                                            <Text style={styles.errorText}>
-                                                                {errors.confirmPassword.message}
-                                                            </Text>
-                                                        )}
-                                                    </View>
-                                                )}
-                                            />
-                                        </View>
+                                                    )}
+                                                </View>
+                                            )}
+                                        />
                                     </View>
-                                </LinearGradient>
+
+                                    {/* Name Input */}
+                                    <View style={styles.inputGroup}>
+                                        <Controller
+                                            control={control}
+                                            name="name"
+                                            render={({ field: { onChange, onBlur, value } }) => (
+                                                <View style={styles.enhancedInputWrapper}>
+                                                    <Text style={styles.inputLabel}>이름 *</Text>
+                                                    <View style={[
+                                                        styles.inputFieldContainer,
+                                                        focusedField === 'name' && styles.inputFieldFocused,
+                                                        errors.name && styles.inputFieldError
+                                                    ]}>
+                                                        <Ionicons
+                                                            name="person-outline"
+                                                            size={20}
+                                                            color={mimoColors.primary}
+                                                            style={styles.inputIcon}
+                                                        />
+                                                        <TextInput
+                                                            placeholder="이름을 입력해 주세요"
+                                                            value={value}
+                                                            onChangeText={onChange}
+                                                            onBlur={() => {
+                                                                onBlur();
+                                                                setFocusedField(null);
+                                                            }}
+                                                            onFocus={() => setFocusedField('name')}
+                                                            autoCapitalize="words"
+                                                            style={styles.enhancedInput}
+                                                            placeholderTextColor={mimoColors.textSecondary}
+                                                        />
+                                                    </View>
+                                                    {errors.name && (
+                                                        <Text style={styles.errorText}>
+                                                            {errors.name.message}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            )}
+                                        />
+                                    </View>
+
+                                    {/* Nickname Input */}
+                                    <View style={styles.inputGroup}>
+                                        <Controller
+                                            control={control}
+                                            name="nickname"
+                                            render={({ field: { onChange, onBlur, value } }) => (
+                                                <View style={styles.enhancedInputWrapper}>
+                                                    <Text style={styles.inputLabel}>닉네임 *</Text>
+                                                    <View style={[
+                                                        styles.inputFieldContainer,
+                                                        focusedField === 'nickname' && styles.inputFieldFocused,
+                                                        errors.nickname && styles.inputFieldError
+                                                    ]}>
+                                                        <Ionicons
+                                                            name="at-outline"
+                                                            size={20}
+                                                            color={mimoColors.primary}
+                                                            style={styles.inputIcon}
+                                                        />
+                                                        <TextInput
+                                                            placeholder="닉네임을 입력해 주세요"
+                                                            value={value}
+                                                            onChangeText={onChange}
+                                                            onBlur={() => {
+                                                                onBlur();
+                                                                setFocusedField(null);
+                                                            }}
+                                                            onFocus={() => setFocusedField('nickname')}
+                                                            autoCapitalize="none"
+                                                            style={styles.enhancedInput}
+                                                            placeholderTextColor={mimoColors.textSecondary}
+                                                        />
+                                                    </View>
+                                                    {errors.nickname && (
+                                                        <Text style={styles.errorText}>
+                                                            {errors.nickname.message}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            )}
+                                        />
+                                    </View>
+
+                                    {/* Password Input */}
+                                    <View style={styles.inputGroup}>
+                                        <Controller
+                                            control={control}
+                                            name="password"
+                                            render={({ field: { onChange, onBlur, value } }) => (
+                                                <View style={styles.enhancedInputWrapper}>
+                                                    <Text style={styles.inputLabel}>비밀번호 *</Text>
+                                                    <View style={[
+                                                        styles.inputFieldContainer,
+                                                        focusedField === 'password' && styles.inputFieldFocused,
+                                                        errors.password && styles.inputFieldError
+                                                    ]}>
+                                                        <Ionicons
+                                                            name="lock-closed-outline"
+                                                            size={20}
+                                                            color={mimoColors.primary}
+                                                            style={styles.inputIcon}
+                                                        />
+                                                        <TextInput
+                                                            placeholder="비밀번호를 입력해 주세요"
+                                                            value={value}
+                                                            onChangeText={onChange}
+                                                            onBlur={() => {
+                                                                onBlur();
+                                                                setFocusedField(null);
+                                                            }}
+                                                            onFocus={() => setFocusedField('password')}
+                                                            secureTextEntry={!showPassword}
+                                                            style={styles.enhancedInput}
+                                                            placeholderTextColor={mimoColors.textSecondary}
+                                                        />
+                                                        <TouchableOpacity
+                                                            onPress={() => setShowPassword(!showPassword)}
+                                                            style={styles.passwordToggle}
+                                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                                        >
+                                                            <Ionicons
+                                                                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                                                                size={20}
+                                                                color={mimoColors.textSecondary}
+                                                            />
+                                                        </TouchableOpacity>
+                                                    </View>
+
+                                                    {/* Password Strength Indicator */}
+                                                    {value && (
+                                                        <View style={styles.passwordStrengthContainer}>
+                                                            <View style={styles.passwordStrengthBar}>
+                                                                <View style={styles.passwordStrengthBarBackground} />
+                                                                <View
+                                                                    style={[
+                                                                        styles.passwordStrengthBarFill,
+                                                                        {
+                                                                            width: `${passwordStrength.strength}%`,
+                                                                            backgroundColor: passwordStrength.color
+                                                                        }
+                                                                    ]}
+                                                                />
+                                                            </View>
+                                                            <Text style={[styles.passwordStrengthText, { color: passwordStrength.color }]}>
+                                                                {passwordStrength.text}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+
+                                                    <Text style={styles.helperText}>
+                                                        8자 이상, 대소문자, 숫자, 특수문자 포함
+                                                    </Text>
+
+                                                    {errors.password && (
+                                                        <Text style={styles.errorText}>
+                                                            {errors.password.message}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            )}
+                                        />
+                                    </View>
+
+                                    {/* Confirm Password Input */}
+                                    <View style={styles.inputGroup}>
+                                        <Controller
+                                            control={control}
+                                            name="confirmPassword"
+                                            render={({ field: { onChange, onBlur, value } }) => (
+                                                <View style={styles.enhancedInputWrapper}>
+                                                    <Text style={styles.inputLabel}>비밀번호 확인 *</Text>
+                                                    <View style={[
+                                                        styles.inputFieldContainer,
+                                                        focusedField === 'confirmPassword' && styles.inputFieldFocused,
+                                                        errors.confirmPassword && styles.inputFieldError
+                                                    ]}>
+                                                        <Ionicons
+                                                            name="lock-closed-outline"
+                                                            size={20}
+                                                            color={mimoColors.primary}
+                                                            style={styles.inputIcon}
+                                                        />
+                                                        <TextInput
+                                                            placeholder="비밀번호를 다시 입력해 주세요"
+                                                            value={value}
+                                                            onChangeText={onChange}
+                                                            onBlur={() => {
+                                                                onBlur();
+                                                                setFocusedField(null);
+                                                            }}
+                                                            onFocus={() => setFocusedField('confirmPassword')}
+                                                            secureTextEntry={!showConfirmPassword}
+                                                            style={styles.enhancedInput}
+                                                            placeholderTextColor={mimoColors.textSecondary}
+                                                        />
+                                                        <TouchableOpacity
+                                                            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                            style={styles.passwordToggle}
+                                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                                        >
+                                                            <Ionicons
+                                                                name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                                                                size={20}
+                                                                color={mimoColors.textSecondary}
+                                                            />
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                    {errors.confirmPassword && (
+                                                        <Text style={styles.errorText}>
+                                                            {errors.confirmPassword.message}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                            )}
+                                        />
+                                    </View>
+                                </View>
                             </View>
 
                             {/* Enhanced Terms Section */}
                             <View style={styles.termsCard}>
-                                <LinearGradient
-                                    colors={[
-                                        'rgba(255, 255, 255, 0.95)',
-                                        'rgba(251, 249, 244, 0.8)'
-                                    ]}
-                                    style={styles.glassSurface}
-                                >
-                                    <View style={styles.termsHeader}>
-                                        <Text style={styles.termsTitle}>약관 동의</Text>
-                                        <Text style={styles.termsSubtitle}>
-                                            서비스 이용을 위해 약관에 동의해주세요
-                                        </Text>
+                                <View style={styles.termsHeader}>
+                                    <Text style={styles.termsTitle}>약관 동의</Text>
+                                    <Text style={styles.termsSubtitle}>
+                                        서비스 이용을 위해 약관에 동의해주세요
+                                    </Text>
+                                </View>
+
+                                <View style={styles.termsContent}>
+                                    <View style={styles.agreementItem}>
+                                        <Controller
+                                            control={control}
+                                            name="agreeTerms"
+                                            render={({ field: { value } }) => (
+                                                <TouchableOpacity
+                                                    style={styles.checkboxRow}
+                                                    onPress={() => setValue('agreeTerms', !value, { shouldValidate: true })}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <View style={[
+                                                        styles.checkbox,
+                                                        value && styles.checkboxChecked
+                                                    ]}>
+                                                        {value && (
+                                                            <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.checkboxLabel}>
+                                                        서비스 이용약관 동의 (필수)
+                                                    </Text>
+                                                    <TouchableOpacity style={styles.linkButton}>
+                                                        <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
+                                                    </TouchableOpacity>
+                                                </TouchableOpacity>
+                                            )}
+                                        />
+                                        {errors.agreeTerms && (
+                                            <Text style={styles.agreementError}>{errors.agreeTerms.message}</Text>
+                                        )}
                                     </View>
 
-                                    <View style={styles.termsContent}>
-                                        <View style={styles.agreementItem}>
-                                            <Controller
-                                                control={control}
-                                                name="agreeTerms"
-                                                render={({ field: { value } }) => (
-                                                    <TouchableOpacity
-                                                        style={styles.checkboxRow}
-                                                        onPress={() => setValue('agreeTerms', !value, { shouldValidate: true })}
-                                                        activeOpacity={0.7}
-                                                    >
-                                                        <View style={[
-                                                            styles.checkbox,
-                                                            value && styles.checkboxChecked
-                                                        ]}>
-                                                            {value && (
-                                                                <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
-                                                            )}
-                                                        </View>
-                                                        <Text style={styles.checkboxLabel}>
-                                                            서비스 이용약관 동의 (필수)
-                                                        </Text>
-                                                        <TouchableOpacity style={styles.linkButton}>
-                                                            <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
-                                                        </TouchableOpacity>
+                                    <View style={styles.agreementItem}>
+                                        <Controller
+                                            control={control}
+                                            name="agreePrivacy"
+                                            render={({ field: { value } }) => (
+                                                <TouchableOpacity
+                                                    style={styles.checkboxRow}
+                                                    onPress={() => setValue('agreePrivacy', !value, { shouldValidate: true })}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <View style={[
+                                                        styles.checkbox,
+                                                        value && styles.checkboxChecked
+                                                    ]}>
+                                                        {value && (
+                                                            <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.checkboxLabel}>
+                                                        개인정보 처리방침 동의 (필수)
+                                                    </Text>
+                                                    <TouchableOpacity style={styles.linkButton}>
+                                                        <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
                                                     </TouchableOpacity>
-                                                )}
-                                            />
-                                            {errors.agreeTerms && (
-                                                <Text style={styles.agreementError}>{errors.agreeTerms.message}</Text>
+                                                </TouchableOpacity>
                                             )}
-                                        </View>
-
-                                        <View style={styles.agreementItem}>
-                                            <Controller
-                                                control={control}
-                                                name="agreePrivacy"
-                                                render={({ field: { value } }) => (
-                                                    <TouchableOpacity
-                                                        style={styles.checkboxRow}
-                                                        onPress={() => setValue('agreePrivacy', !value, { shouldValidate: true })}
-                                                        activeOpacity={0.7}
-                                                    >
-                                                        <View style={[
-                                                            styles.checkbox,
-                                                            value && styles.checkboxChecked
-                                                        ]}>
-                                                            {value && (
-                                                                <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
-                                                            )}
-                                                        </View>
-                                                        <Text style={styles.checkboxLabel}>
-                                                            개인정보 처리방침 동의 (필수)
-                                                        </Text>
-                                                        <TouchableOpacity style={styles.linkButton}>
-                                                            <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
-                                                        </TouchableOpacity>
-                                                    </TouchableOpacity>
-                                                )}
-                                            />
-                                            {errors.agreePrivacy && (
-                                                <Text style={styles.agreementError}>{errors.agreePrivacy.message}</Text>
-                                            )}
-                                        </View>
-
-                                        <View style={styles.agreementItem}>
-                                            <Controller
-                                                control={control}
-                                                name="agreeMicrophone"
-                                                render={({ field: { value } }) => (
-                                                    <TouchableOpacity
-                                                        style={styles.checkboxRow}
-                                                        onPress={() => setValue('agreeMicrophone', !value, { shouldValidate: true })}
-                                                        activeOpacity={0.7}
-                                                    >
-                                                        <View style={[
-                                                            styles.checkbox,
-                                                            value && styles.checkboxChecked
-                                                        ]}>
-                                                            {value && (
-                                                                <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
-                                                            )}
-                                                        </View>
-                                                        <Text style={styles.checkboxLabel}>
-                                                            마이크 권한 동의 (필수)
-                                                        </Text>
-                                                        <TouchableOpacity style={styles.linkButton}>
-                                                            <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
-                                                        </TouchableOpacity>
-                                                    </TouchableOpacity>
-                                                )}
-                                            />
-                                            {errors.agreeMicrophone && (
-                                                <Text style={styles.agreementError}>{errors.agreeMicrophone.message}</Text>
-                                            )}
-                                        </View>
-
-                                        <View style={styles.agreementItem}>
-                                            <Controller
-                                                control={control}
-                                                name="agreeLocation"
-                                                render={({ field: { value } }) => (
-                                                    <TouchableOpacity
-                                                        style={styles.checkboxRow}
-                                                        onPress={() => setValue('agreeLocation', !value, { shouldValidate: true })}
-                                                        activeOpacity={0.7}
-                                                    >
-                                                        <View style={[
-                                                            styles.checkbox,
-                                                            value && styles.checkboxChecked
-                                                        ]}>
-                                                            {value && (
-                                                                <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
-                                                            )}
-                                                        </View>
-                                                        <Text style={styles.checkboxLabel}>
-                                                            위치 권한 동의 (필수)
-                                                        </Text>
-                                                        <TouchableOpacity style={styles.linkButton}>
-                                                            <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
-                                                        </TouchableOpacity>
-                                                    </TouchableOpacity>
-                                                )}
-                                            />
-                                            {errors.agreeLocation && (
-                                                <Text style={styles.agreementError}>{errors.agreeLocation.message}</Text>
-                                            )}
-                                        </View>
+                                        />
+                                        {errors.agreePrivacy && (
+                                            <Text style={styles.agreementError}>{errors.agreePrivacy.message}</Text>
+                                        )}
                                     </View>
-                                </LinearGradient>
+
+                                    <View style={styles.agreementItem}>
+                                        <Controller
+                                            control={control}
+                                            name="agreeMicrophone"
+                                            render={({ field: { value } }) => (
+                                                <TouchableOpacity
+                                                    style={styles.checkboxRow}
+                                                    onPress={() => setValue('agreeMicrophone', !value, { shouldValidate: true })}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <View style={[
+                                                        styles.checkbox,
+                                                        value && styles.checkboxChecked
+                                                    ]}>
+                                                        {value && (
+                                                            <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.checkboxLabel}>
+                                                        마이크 권한 동의 (필수)
+                                                    </Text>
+                                                    <TouchableOpacity style={styles.linkButton}>
+                                                        <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
+                                                    </TouchableOpacity>
+                                                </TouchableOpacity>
+                                            )}
+                                        />
+                                        {errors.agreeMicrophone && (
+                                            <Text style={styles.agreementError}>{errors.agreeMicrophone.message}</Text>
+                                        )}
+                                    </View>
+
+                                    <View style={styles.agreementItem}>
+                                        <Controller
+                                            control={control}
+                                            name="agreeLocation"
+                                            render={({ field: { value } }) => (
+                                                <TouchableOpacity
+                                                    style={styles.checkboxRow}
+                                                    onPress={() => setValue('agreeLocation', !value, { shouldValidate: true })}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <View style={[
+                                                        styles.checkbox,
+                                                        value && styles.checkboxChecked
+                                                    ]}>
+                                                        {value && (
+                                                            <Ionicons name="checkmark" size={16} color={mimoColors.textOnPrimary} />
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.checkboxLabel}>
+                                                        위치 권한 동의 (필수)
+                                                    </Text>
+                                                    <TouchableOpacity style={styles.linkButton}>
+                                                        <Ionicons name="chevron-forward" size={16} color={mimoColors.primary} />
+                                                    </TouchableOpacity>
+                                                </TouchableOpacity>
+                                            )}
+                                        />
+                                        {errors.agreeLocation && (
+                                            <Text style={styles.agreementError}>{errors.agreeLocation.message}</Text>
+                                        )}
+                                    </View>
+                                </View>
                             </View>
 
                             {/* Enhanced Register Button */}
@@ -703,12 +648,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                 ]}
                                 activeOpacity={0.8}
                             >
-                                <LinearGradient
-                                    colors={[mimoColors.primary, mimoColors.primaryLight]}
-                                    style={styles.registerButton}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                >
+                                <View style={styles.registerButton}>
                                     {isLoading ? (
                                         <View style={styles.loadingContainer}>
                                             <ActivityIndicator
@@ -721,7 +661,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                                     ) : (
                                         <Text style={styles.registerButtonText}>회원가입</Text>
                                     )}
-                                </LinearGradient>
+                                </View>
                             </TouchableOpacity>
 
                             {/* Enhanced Footer */}
@@ -746,43 +686,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: mimoColors.background,
-    },
-    gradientBackground: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-    },
-    floatingElement1: {
-        position: 'absolute',
-        top: 60,
-        left: -20,
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: mimoColors.accent + '30',
-        opacity: 0.6,
-    },
-    floatingElement2: {
-        position: 'absolute',
-        top: 300,
-        right: -30,
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: mimoColors.primary + '20',
-        opacity: 0.4,
-    },
-    floatingElement3: {
-        position: 'absolute',
-        bottom: 100,
-        left: 20,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: mimoColors.accent + '40',
-        opacity: 0.3,
     },
     safeArea: {
         flex: 1,
@@ -856,24 +759,21 @@ const styles = StyleSheet.create({
     brandAccent: {
         width: 40,
         height: 3,
-        backgroundColor: mimoColors.accent,
+        backgroundColor: mimoColors.primary,
         borderRadius: 2,
     },
 
     // Enhanced Progress Section
     progressCard: {
+        backgroundColor: mimoColors.surface,
         borderRadius: 16,
-        overflow: 'hidden',
-        shadowColor: mimoColors.shadow,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.1,
-        shadowRadius: 16,
-        elevation: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(234, 230, 221, 0.3)',
-    },
-    progressCardGradient: {
         padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+        marginHorizontal: 4,
     },
     progressContainer: {
         gap: 12,
@@ -913,6 +813,7 @@ const styles = StyleSheet.create({
         left: 0,
         bottom: 0,
         borderRadius: 4,
+        backgroundColor: mimoColors.primary,
     },
 
     // Enhanced Error Section
@@ -939,19 +840,16 @@ const styles = StyleSheet.create({
 
     // Enhanced Form Section
     glassCard: {
-        borderRadius: 20,
-        overflow: 'hidden',
-        shadowColor: mimoColors.shadow,
-        shadowOffset: { width: 0, height: 15 },
-        shadowOpacity: 0.12,
-        shadowRadius: 25,
-        elevation: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(234, 230, 221, 0.3)',
-        marginBottom: 20,
-    },
-    glassSurface: {
+        backgroundColor: mimoColors.surface,
+        borderRadius: 16,
         padding: 24,
+        marginHorizontal: 4,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
     },
     formHeader: {
         alignItems: 'center',
@@ -1062,16 +960,16 @@ const styles = StyleSheet.create({
 
     // Enhanced Terms Section
     termsCard: {
-        borderRadius: 20,
-        overflow: 'hidden',
-        shadowColor: mimoColors.shadow,
-        shadowOffset: { width: 0, height: 15 },
-        shadowOpacity: 0.12,
-        shadowRadius: 25,
-        elevation: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(234, 230, 221, 0.3)',
+        backgroundColor: mimoColors.surface,
+        borderRadius: 16,
+        padding: 24,
+        marginHorizontal: 4,
         marginBottom: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
     },
     termsHeader: {
         alignItems: 'center',
@@ -1131,22 +1029,25 @@ const styles = StyleSheet.create({
 
     // Enhanced Register Button
     registerButtonContainer: {
-        borderRadius: 14,
+        borderRadius: 12,
         overflow: 'hidden',
-        shadowColor: mimoColors.primary,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 6,
+        backgroundColor: mimoColors.primary,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
         marginBottom: 24,
     },
     registerButtonDisabled: {
-        opacity: 0.7,
+        opacity: 0.6,
     },
     registerButton: {
-        paddingVertical: 17,
+        paddingVertical: 14,
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: mimoColors.primary,
+        minHeight: 48,
     },
     registerButtonText: {
         fontSize: 17,

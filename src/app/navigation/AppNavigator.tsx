@@ -33,8 +33,9 @@ import QRCodeGeneratorScreen from '@/features/camera/screens/QRCodeGeneratorScre
 // Recording Screens
 import RecordingListScreen from '@/features/recording/screens/RecordingListScreen';
 
-// Test Screen
+// Test Screens
 import WebSocketTestScreen from '@/shared/components/examples/WebSocketTestScreen';
+import APITestScreen from '@/shared/components/examples/APITestScreen';
 
 import { useAuthStore } from '@/shared/stores/authStore';
 
@@ -55,6 +56,7 @@ export type RootStackParamList = {
     MotionDetectionSettings: undefined;
     NotificationSettings: undefined;
     WebSocketTest: undefined;
+    APITest: undefined;
 };
 
 export type AuthStackParamList = {
@@ -166,6 +168,7 @@ export default function AppNavigator() {
                         <RootStack.Screen name="MotionDetectionSettings" component={MotionDetectionSettingsScreen} />
                         <RootStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
                         <RootStack.Screen name="WebSocketTest" component={WebSocketTestScreen} />
+                        <RootStack.Screen name="APITest" component={APITestScreen} />
                     </>
                 ) : (
                     <RootStack.Screen name="Auth" component={AuthNavigator} />

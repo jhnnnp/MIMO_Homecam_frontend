@@ -3,7 +3,7 @@ import api from '@/features/../shared/services/api/api';
 import { createLogger } from '@/shared/utils/logger';
 import { withErrorHandling, createValidationError } from '../../../shared/utils/errorHandler';
 import config from '@/app/config';
-import eventMockData from '../mocks/eventData.json';
+// import eventMockData from '../mocks/eventData.json'; // Mock 데이터 사용 안함
 
 // 이벤트 서비스 로거
 const eventLogger = createLogger('EventService');
@@ -67,26 +67,8 @@ class EventService {
             const response = await apiService.get<Event[]>(url);
             return response;
         } catch (error) {
-            console.log('📱 [EventService] API 호출 실패, Mock 데이터 사용');
-            // Mock 데이터 반환 (필터링 로직 추가 가능)
-            let filteredData = eventMockData as Event[];
-
-            if (filters) {
-                if (filters.type) {
-                    filteredData = filteredData.filter(event => event.type === filters.type);
-                }
-                if (filters.isPinned !== undefined) {
-                    filteredData = filteredData.filter(event => event.isPinned === filters.isPinned);
-                }
-                if (filters.limit) {
-                    filteredData = filteredData.slice(0, filters.limit);
-                }
-            }
-
-            return {
-                ok: true,
-                data: filteredData
-            };
+            eventLogger.error('API 호출 실패:', error);
+            throw error; // Mock 데이터 대신 에러를 그대로 던짐
         }
     }
 

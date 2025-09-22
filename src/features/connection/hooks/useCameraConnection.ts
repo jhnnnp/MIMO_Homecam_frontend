@@ -42,6 +42,13 @@ interface CameraRegistrationResponse {
     };
 }
 
+interface PinGenerationResponse {
+    pinCode: string;
+    cameraId: string;
+    expiresIn: string;
+    message: string;
+}
+
 // ============================================================================
 // 검증 함수들
 // ============================================================================
@@ -99,6 +106,7 @@ export function useCameraConnection(
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isConnectingRef = useRef(false);
     const isDisconnectingRef = useRef(false);
+    const hasAutoStartedRef = useRef(false);
 
     // ============================================================================
     // 외부 의존성
@@ -204,47 +212,52 @@ export function useCameraConnection(
                 const timestamp = Date.now().toString().slice(-3);
                 const randomPart = Math.floor(100 + Math.random() * 900).toString();
                 const pinCode = `${randomPart}${timestamp}`;
-                
+
                 console.log('🎯 [PIN 생성] 생성된 PIN 코드:', pinCode);
                 console.log('🎯 [PIN 생성] 카메라 ID:', cameraId);
                 console.log('🎯 [PIN 생성] 카메라 이름:', cameraName);
 
-                // 2. 홈캠 등록 API 호출
+                // 2. PIN 코드 발급 API 호출 (새로운 분리된 엔드포인트)
                 const { getApiBaseUrl } = await import('@/app/config');
-                const url = `${getApiBaseUrl()}/cameras/register`;
+                const url = `${getApiBaseUrl()}/cameras/generate-pin`;
                 console.log('🌐 [PIN 생성] API URL:', url);
 
                 const requestBody = {
-                    cameraId,
-                    cameraName,
-                    connectionId: pinCode, // PIN 코드를 connectionId로 사용
-                    timestamp: Date.now(),
-                    deviceType: 'mobile'
+                    cameraId
+                    // cameraName 제거: 백엔드에서 자동 생성
+                    // connectionId 제거: 백엔드에서 자동 생성
                 };
                 console.log('📤 [PIN 생성] 요청 데이터:', JSON.stringify(requestBody, null, 2));
 
-                const response = await makeAuthenticatedRequest<{ data: CameraRegistrationResponse }>(
+                const response = await makeAuthenticatedRequest<any>(
                     url,
                     getAccessToken,
                     {
                         method: 'POST',
                         body: JSON.stringify(requestBody),
-                        context: 'Camera Registration'
+                        context: 'PIN Generation'
                     }
                 );
 
                 console.log('📥 [PIN 생성] 서버 응답:', JSON.stringify(response, null, 2));
 
-                // 응답 데이터 검증
-                if (!response.data) {
-                    console.error('❌ [PIN 생성] 서버 응답 데이터 없음:', response);
-                    throw new NetworkError('서버 응답이 올바르지 않습니다.');
+                // 응답 데이터 파싱: { ok: true, data: { success, data: { pinCode } } } 또는 { success, data: { pinCode } }
+                const body = response as any;
+                const payload: PinGenerationResponse | undefined =
+                    body?.data?.data ?? body?.data ?? body;
+
+                if (!payload || typeof payload.pinCode !== 'string' || payload.pinCode.length === 0) {
+                    console.error('❌ [PIN 생성] PIN 코드가 응답에 없습니다:', payload);
+                    throw new NetworkError('서버에서 PIN 코드를 받지 못했습니다. 잠시 후 다시 시도해주세요.');
                 }
 
-                const connectionId = pinCode; // PIN 코드가 connectionId
-                console.log('✅ [PIN 생성] 홈캠 등록 성공 - PIN:', pinCode, 'Connection ID:', connectionId);
+                // 새로운 API 응답에서 PIN 코드 추출
+                const generatedPinCode = payload.pinCode;
+                const connectionId = generatedPinCode; // PIN 코드가 connectionId
+                console.log('✅ [PIN 생성] PIN 발급 성공 - PIN:', generatedPinCode, 'Connection ID:', connectionId);
 
-                const publisherUrl = response.data.media?.publisherUrl;
+                // 새로운 API에서는 media 정보 없음 (PIN 발급만 하므로)
+                const publisherUrl = undefined;
 
                 // 3. WebSocket 연결 설정
                 if (!streamingService.isConnected()) {
@@ -259,7 +272,7 @@ export function useCameraConnection(
                     console.log('✅ [PIN 생성] WebSocket 연결 성공');
 
                     // 카메라 등록 및 등록 확인 대기
-                    const registered = streamingService.registerCamera(cameraId, cameraName);
+                    const registered = await streamingService.registerCamera(cameraId, cameraName);
                     if (registered) {
                         console.log('📝 [PIN 생성] 카메라 등록 요청 완료:', cameraId, cameraName);
 
@@ -275,7 +288,7 @@ export function useCameraConnection(
                 } else {
                     console.log('✅ [PIN 생성] WebSocket 이미 연결됨');
                     // 이미 연결된 경우에도 카메라 등록
-                    streamingService.registerCamera(cameraId, cameraName);
+                    await streamingService.registerCamera(cameraId, cameraName);
                 }
 
                 // PIN 코드 데이터 생성
@@ -284,7 +297,7 @@ export function useCameraConnection(
                     cameraId,
                     cameraName,
                     connectionId,
-                    pinCode,
+                    pinCode: generatedPinCode,
                     timestamp: Date.now(),
                     version: '1.0.0',
                     apiUrl: (await import('@/app/config')).getApiBaseUrl()
@@ -293,7 +306,7 @@ export function useCameraConnection(
 
                 safeSetState(prev => ({
                     ...prev,
-                    pinCode,
+                    pinCode: generatedPinCode,
                     connectionId,
                     publisherUrl,
                     isLoading: false,
@@ -302,15 +315,15 @@ export function useCameraConnection(
                     isConnected: true,
                 }));
 
-                console.log('🎉 [PIN 생성] 완료! PIN 코드:', pinCode);
+                console.log('🎉 [PIN 생성] 완료! PIN 코드:', generatedPinCode);
                 console.log('🎉 [PIN 생성] 연결 상태:', 'connected');
                 console.log('🎉 [PIN 생성] 뷰어가 PIN 코드를 입력하면 연결됩니다.');
 
-                logHook('useCameraConnection', 'generatePinCode', 'PIN 코드 생성 완료', { connectionId, pinCode });
-                return pinCode;
+                logHook('useCameraConnection', 'generatePinCode', 'PIN 코드 생성 완료', { connectionId, pinCode: generatedPinCode });
+                return generatedPinCode;
             } catch (error) {
                 console.error('❌ [PIN 생성] 오류 발생:', error);
-                
+
                 // 구체적인 에러 메시지 생성
                 let errorMessage = 'PIN 코드 생성에 실패했습니다.';
                 if (error instanceof Error) {
@@ -326,7 +339,7 @@ export function useCameraConnection(
                         errorMessage = `PIN 생성 실패: ${error.message}`;
                     }
                 }
-                
+
                 console.error('❌ [PIN 생성] 사용자 메시지:', errorMessage);
                 handleError(new Error(errorMessage), 'generatePinCode');
                 throw new Error(errorMessage);
@@ -347,7 +360,7 @@ export function useCameraConnection(
                 return;
             }
 
-            if (!state.isConnected) {
+            if (!streamingService.isConnected()) {
                 throw new NetworkError('서버에 연결되지 않았습니다. PIN 코드를 먼저 생성해주세요.');
             }
 
@@ -378,7 +391,7 @@ export function useCameraConnection(
                 throw error;
             }
         }, 'Streaming Start');
-    }, [cameraId, state.isConnected, state.isStreaming, setLoading, clearError, safeSetState, handleError, webrtcService]);
+    }, [cameraId, state.isStreaming, setLoading, clearError, safeSetState, handleError, webrtcService]);
 
     const stopStreaming = useCallback(async (): Promise<void> => {
         return safeExecute(async () => {
@@ -555,7 +568,7 @@ export function useCameraConnection(
             }
         };
 
-        const handleViewerJoined = (data: { streamId: string; viewerId: string }) => {
+        const handleViewerJoined = (data: { streamId?: string; cameraId?: string; viewerId: string }) => {
             logHook('useCameraConnection', 'websocket', '뷰어 참여', { viewerId: data.viewerId });
 
             safeSetState(prev => ({
@@ -563,6 +576,14 @@ export function useCameraConnection(
                 connectedViewers: [...prev.connectedViewers, data.viewerId],
                 viewerCount: prev.viewerCount + 1
             }));
+
+            // 첫 번째 뷰어가 들어오면 자동으로 스트리밍 시작 (중복 방지 + 연결 확인)
+            if (!hasAutoStartedRef.current && streamingService.isConnected()) {
+                hasAutoStartedRef.current = true;
+                startStreaming(data.viewerId).catch(() => {
+                    // 에러는 handleError에서 처리됨
+                });
+            }
 
             Alert.alert(
                 '뷰어 연결됨',
@@ -602,11 +623,21 @@ export function useCameraConnection(
                 connectedViewers: [],
                 viewerCount: 0
             }));
+
+            hasAutoStartedRef.current = false;
         };
 
         const handleStreamingError = (error: any) => {
             logHookError('useCameraConnection', 'websocket', '스트리밍 오류', error instanceof Error ? error : undefined);
             handleError(error, 'WebSocket');
+        };
+
+        const handleViewerCountUpdate = (data: { connectionId: string; viewerCount: number }) => {
+            logHook('useCameraConnection', 'websocket', '뷰어 수 갱신', data);
+            safeSetState(prev => ({
+                ...prev,
+                viewerCount: data.viewerCount
+            }));
         };
 
         // ============================================================================
@@ -615,10 +646,12 @@ export function useCameraConnection(
 
         streamingService.on('connected', handleConnected);
         streamingService.on('disconnected', handleDisconnected);
-        streamingService.on('viewerJoined', handleViewerJoined);
-        streamingService.on('viewerLeft', handleViewerLeft);
-        streamingService.on('streamStarted', handleStreamStarted);
-        streamingService.on('streamStopped', handleStreamStopped);
+        // 이벤트 이름을 서비스의 실제 emit 키와 일치시키기 (snake_case)
+        streamingService.on('viewer_joined', handleViewerJoined);
+        streamingService.on('viewer_left', handleViewerLeft);
+        streamingService.on('stream_started', handleStreamStarted);
+        streamingService.on('stream_stopped', handleStreamStopped);
+        streamingService.on('viewer_count_update', handleViewerCountUpdate);
         streamingService.on('error', handleStreamingError);
 
         // ============================================================================
@@ -633,13 +666,14 @@ export function useCameraConnection(
                 clearTimeout(reconnectTimeoutRef.current);
             }
 
-            // 이벤트 리스너 제거
+            // 이벤트 리스너 제거 (snake_case와 일치)
             streamingService.off('connected', handleConnected);
             streamingService.off('disconnected', handleDisconnected);
-            streamingService.off('viewerJoined', handleViewerJoined);
-            streamingService.off('viewerLeft', handleViewerLeft);
-            streamingService.off('streamStarted', handleStreamStarted);
-            streamingService.off('streamStopped', handleStreamStopped);
+            streamingService.off('viewer_joined', handleViewerJoined);
+            streamingService.off('viewer_left', handleViewerLeft);
+            streamingService.off('stream_started', handleStreamStarted);
+            streamingService.off('stream_stopped', handleStreamStopped);
+            streamingService.off('viewer_count_update', handleViewerCountUpdate);
             streamingService.off('error', handleStreamingError);
 
             logHook('useCameraConnection', 'cleanup', '카메라 연결 훅 정리 완료');

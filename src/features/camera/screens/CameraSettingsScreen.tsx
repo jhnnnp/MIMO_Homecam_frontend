@@ -1,105 +1,73 @@
 /**
- * CameraSettingsScreen - Enterprise-grade Camera Settings Interface
+ * CameraSettingsScreen - 모던한 카메라 설정 화면
  * 
- * Features:
- * - Comprehensive camera configuration options
- * - Real-time settings validation and preview
- * - Advanced video/audio quality controls
- * - Motion detection and recording settings
- * - Network and security configurations
- * - Storage management and optimization
- * - Performance monitoring and diagnostics
- * - Accessibility support (WCAG 2.1 AA)
- * - Professional animations and transitions
- * - Enterprise backup and restore functionality
+ * 핵심 기능:
+ * - 영상 품질 설정
+ * - 오디오 설정
+ * - 녹화 및 동작 감지 설정
+ * - 네트워크 및 보안 설정
  */
 
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
-    TouchableOpacity,
     StatusBar,
-    Alert,
     Switch,
     ScrollView,
-    Animated,
-    Dimensions,
-    Platform,
+    Pressable,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Design System
-import { colors, spacing, radius, elevation, typography, enterpriseColors } from '@/design/tokens';
-
-// Navigation Types
 import { CameraStackParamList } from '@/app/navigation/AppNavigator';
+// 더 이상 API 호출하지 않으므로 제거
 
-// Utils
-import { logger } from '@/shared/utils/logger';
-import { errorHandler } from '@/features/../shared/utils/errorHandler';
-
-// Constants
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const ANIMATION_DURATION = 300;
+// 홈캠 목록과 일치하는 색상 팔레트
+const colors = {
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    surfaceAlt: '#F7F4EF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#E5E5EA',
+    accent: '#F5C572',
+} as const;
 
 // Types
 interface CameraSettingsScreenProps {
     navigation: NativeStackNavigationProp<CameraStackParamList, 'CameraSettings'>;
 }
 
-interface VideoSettings {
-    quality: 'HD' | 'FHD' | '4K' | 'Auto';
-    frameRate: '15fps' | '30fps' | '60fps';
-    bitrate: 'Auto' | 'Low' | 'Medium' | 'High';
-    stabilization: boolean;
-    hdr: boolean;
-}
-
-interface AudioSettings {
-    enabled: boolean;
-    quality: 'Low' | 'Standard' | 'High';
-    noiseReduction: boolean;
-    echoCancellation: boolean;
-}
-
-interface RecordingSettings {
+interface CameraSettings {
+    videoQuality: string;
+    audioEnabled: boolean;
     autoRecord: boolean;
-    recordingQuality: 'HD' | 'FHD' | '4K';
-    maxDuration: '10min' | '30min' | '1hour' | 'unlimited';
-    storageLimit: '1GB' | '5GB' | '10GB' | '50GB' | 'unlimited';
-    autoDelete: boolean;
-    deleteDays: number;
+    motionDetection: boolean;
+    motionSensitivity: string;
+    nightVision: boolean;
 }
 
-interface MotionSettings {
-    enabled: boolean;
-    sensitivity: 'Low' | 'Medium' | 'High';
-    zones: string[];
-    notifications: boolean;
-    recordOnMotion: boolean;
-    cooldownPeriod: number;
-}
-
-interface NetworkSettings {
-    wifiOnly: boolean;
-    bandwidth: 'Auto' | 'Low' | 'Medium' | 'High';
-    port: number;
-    encryption: boolean;
-    maxConnections: number;
-}
-
-interface SecuritySettings {
-    requirePin: boolean;
-    pinExpiry: '5min' | '10min' | '30min' | '1hour';
-    encryptStream: boolean;
-    allowExternalAccess: boolean;
-    logConnections: boolean;
+interface SystemInfo {
+    cameraStatus: string;
+    networkStatus: string;
+    storageUsed: number;
+    performance: string;
+    lastCheck: string;
+    version: string;
+    model: string;
+    maxResolution: string;
+    maxFrameRate: string;
 }
 
 interface SettingItemProps {
@@ -108,782 +76,442 @@ interface SettingItemProps {
     subtitle?: string;
     rightElement?: React.ReactNode;
     onPress?: () => void;
-    showArrow?: boolean;
     iconColor?: string;
     disabled?: boolean;
 }
 
-// Custom Hooks
-const useSettingsAnalytics = () => {
-    const trackEvent = useCallback((event: string, properties?: Record<string, any>) => {
-        logger.info(`[Settings Analytics] ${event}`, properties);
-        // Integration with analytics service
-    }, []);
+interface OptionSelectorProps {
+    currentValue: string;
+    options: string[];
+    onSelect: (value: string) => void;
+}
 
-    return { trackEvent };
-};
-
-const useSettingsValidation = () => {
-    const validateSettings = useCallback((settings: any) => {
-        // Validate settings before applying
-        const errors: string[] = [];
-
-        if (settings.network?.port && (settings.network.port < 1000 || settings.network.port > 65535)) {
-            errors.push('포트 번호는 1000-65535 범위여야 합니다');
-        }
-
-        return errors;
-    }, []);
-
-    return { validateSettings };
-};
-
-// Component Implementation
-const SettingItem: React.FC<SettingItemProps> = memo(({
+// 컴포넌트들
+const SettingItem: React.FC<SettingItemProps> = ({
     icon,
     title,
     subtitle,
     rightElement,
     onPress,
-    showArrow = true,
     iconColor = colors.primary,
     disabled = false,
 }) => (
-    <TouchableOpacity
-        style={[
+    <Pressable
+        style={({ pressed }) => [
             styles.settingItem,
-            disabled && styles.settingItemDisabled
+            pressed && !disabled && styles.settingItemPressed,
+            disabled && styles.settingItemDisabled,
         ]}
         onPress={onPress}
-        disabled={!onPress || disabled}
-        activeOpacity={0.7}
-        accessibilityLabel={title}
-        accessibilityHint={subtitle}
+        disabled={disabled || !onPress}
     >
         <View style={styles.settingLeft}>
-            <View style={[styles.settingIcon, { backgroundColor: iconColor + '20' }]}>
+            <LinearGradient
+                colors={[iconColor + '20', iconColor + '10']}
+                style={styles.settingIcon}
+            >
                 <Ionicons name={icon as any} size={20} color={iconColor} />
-            </View>
+            </LinearGradient>
             <View style={styles.settingContent}>
-                <Text style={[styles.settingTitle, disabled && styles.disabledText]}>{title}</Text>
-                {subtitle && <Text style={[styles.settingSubtitle, disabled && styles.disabledText]}>{subtitle}</Text>}
+                <Text style={[styles.settingTitle, disabled && styles.disabledText]}>
+                    {title}
+                </Text>
+                {subtitle && (
+                    <Text style={[styles.settingSubtitle, disabled && styles.disabledText]}>
+                        {subtitle}
+                    </Text>
+                )}
             </View>
         </View>
 
-        <View style={styles.settingRight}>
-            {rightElement}
-            {showArrow && onPress && !disabled && (
-                <Ionicons
-                    name="chevron-forward"
-                    size={16}
-                    color={colors.textSecondary}
-                    style={styles.arrowIcon}
-                />
-            )}
-        </View>
-    </TouchableOpacity>
-));
+        {rightElement && (
+            <View style={styles.settingRight}>
+                {rightElement}
+            </View>
+        )}
 
-const CameraSettingsScreen: React.FC<CameraSettingsScreenProps> = memo(({ navigation }) => {
-    // State Management
-    const [videoSettings, setVideoSettings] = useState<VideoSettings>({
-        quality: 'HD',
-        frameRate: '30fps',
-        bitrate: 'Auto',
-        stabilization: true,
-        hdr: false,
-    });
+        {onPress && !rightElement && (
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+        )}
+    </Pressable>
+);
 
-    const [audioSettings, setAudioSettings] = useState<AudioSettings>({
-        enabled: true,
-        quality: 'Standard',
-        noiseReduction: true,
-        echoCancellation: true,
-    });
+const OptionSelector: React.FC<OptionSelectorProps> = ({ currentValue, options, onSelect }) => (
+    <Pressable
+        style={({ pressed }) => [
+            styles.optionSelector,
+            pressed && styles.optionSelectorPressed,
+        ]}
+        onPress={() => {
+            const currentIndex = options.indexOf(currentValue);
+            const nextIndex = (currentIndex + 1) % options.length;
+            onSelect(options[nextIndex]);
+        }}
+    >
+        <Text style={styles.optionText}>{currentValue}</Text>
+        <Ionicons name="chevron-down" size={14} color={colors.primary} />
+    </Pressable>
+);
 
-    const [recordingSettings, setRecordingSettings] = useState<RecordingSettings>({
+const CustomSwitch: React.FC<{ value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean }> = ({
+    value,
+    onValueChange,
+    disabled = false,
+}) => (
+    <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{
+            false: colors.border,
+            true: colors.primary + '40'
+        }}
+        thumbColor={value ? colors.primary : colors.surface}
+        ios_backgroundColor={colors.border}
+        style={styles.switch}
+    />
+);
+
+export default function CameraSettingsScreen({ navigation }: CameraSettingsScreenProps) {
+    // API 호출 제거로 인증 관련 코드 불필요
+
+    // 로딩 상태
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // 설정 상태들
+    const [settings, setSettings] = useState<CameraSettings>({
+        videoQuality: 'HD',
+        audioEnabled: true,
         autoRecord: true,
-        recordingQuality: 'HD',
-        maxDuration: '30min',
-        storageLimit: '5GB',
-        autoDelete: true,
-        deleteDays: 30,
+        motionDetection: true,
+        motionSensitivity: 'Medium',
+        nightVision: false,
     });
 
-    const [motionSettings, setMotionSettings] = useState<MotionSettings>({
-        enabled: true,
-        sensitivity: 'Medium',
-        zones: [],
-        notifications: true,
-        recordOnMotion: true,
-        cooldownPeriod: 10,
+    // 시스템 정보
+    const [systemInfo, setSystemInfo] = useState<SystemInfo>({
+        cameraStatus: '정상',
+        networkStatus: '연결됨',
+        storageUsed: 0,
+        performance: '양호',
+        lastCheck: new Date().toLocaleString(),
+        version: '1.0.0',
+        model: 'MIMO Professional',
+        maxResolution: '4K',
+        maxFrameRate: '60fps',
     });
 
-    const [networkSettings, setNetworkSettings] = useState<NetworkSettings>({
-        wifiOnly: true,
-        bandwidth: 'Auto',
-        port: 8080,
-        encryption: true,
-        maxConnections: 5,
-    });
+    // 설정 로드 (로컬 전용)
+    const loadSettings = useCallback(async () => {
+        try {
+            setIsLoading(true);
 
-    const [securitySettings, setSecuritySettings] = useState<SecuritySettings>({
-        requirePin: true,
-        pinExpiry: '10min',
-        encryptStream: true,
-        allowExternalAccess: false,
-        logConnections: true,
-    });
+            // 로컬 저장소에서 설정 로드
+            const savedSettings = await AsyncStorage.getItem('cameraSettings');
+            if (savedSettings) {
+                setSettings(JSON.parse(savedSettings));
+            }
 
-    // Animation Values
-    const [fadeAnim] = useState(new Animated.Value(0));
-    const [slideAnim] = useState(new Animated.Value(30));
-    const [sectionAnimations] = useState([
-        new Animated.Value(0),
-        new Animated.Value(0),
-        new Animated.Value(0),
-        new Animated.Value(0),
-        new Animated.Value(0),
-        new Animated.Value(0),
-    ]);
+            // 시스템 정보 시뮬레이션 (실제 하드웨어 정보 대신)
+            setSystemInfo(prev => ({
+                ...prev,
+                cameraStatus: '정상',
+                networkStatus: '연결됨',
+                storageUsed: Math.floor(Math.random() * 60) + 20, // 20-80% 랜덤
+                performance: '양호',
+                lastCheck: new Date().toLocaleString(),
+            }));
 
-    // Custom Hooks
-    const { trackEvent } = useSettingsAnalytics();
-    const { validateSettings } = useSettingsValidation();
-
-    // Effects
-    useEffect(() => {
-        logger.info('[CameraSettings] Component mounted');
-        trackEvent('camera_settings_viewed');
-
-        // Entrance animation
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: ANIMATION_DURATION * 2,
-                useNativeDriver: true,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: ANIMATION_DURATION * 2,
-                useNativeDriver: true,
-            }),
-        ]).start();
-
-        // Stagger section animations
-        const animations = sectionAnimations.map((anim, index) =>
-            Animated.timing(anim, {
-                toValue: 1,
-                duration: ANIMATION_DURATION * 2,
-                delay: index * 100,
-                useNativeDriver: true,
-            })
-        );
-        Animated.parallel(animations).start();
-
-        return () => {
-            logger.info('[CameraSettings] Component unmounted');
-        };
+        } catch (error) {
+            console.error('설정 로드 실패:', error);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
-    // Event Handlers
-    const handleBackPress = useCallback(() => {
-        trackEvent('back_button_pressed');
-        navigation.goBack();
-    }, [navigation, trackEvent]);
+    // 설정 저장 (로컬 전용)
+    const saveSettings = useCallback(async (newSettings: CameraSettings) => {
+        try {
+            setIsSaving(true);
 
-    const createSwitch = useCallback((value: boolean, onValueChange: (value: boolean) => void, trackingKey: string) => (
-        <Switch
-            value={value}
-            onValueChange={(newValue) => {
-                onValueChange(newValue);
-                trackEvent('setting_toggled', { key: trackingKey, value: newValue });
+            // 로컬 저장소에만 저장
+            await AsyncStorage.setItem('cameraSettings', JSON.stringify(newSettings));
 
-                // Haptic feedback
-                if (Platform.OS === 'ios') {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }
-            }}
-            trackColor={{
-                false: colors.divider,
-                true: colors.primary + '40'
-            }}
-            thumbColor={value ? colors.primary : colors.surface}
-            ios_backgroundColor={colors.divider}
-        />
-    ), [trackEvent]);
+        } catch (error) {
+            console.error('설정 저장 실패:', error);
+            Alert.alert('오류', '설정 저장에 실패했습니다.');
+        } finally {
+            setIsSaving(false);
+        }
+    }, []);
 
-    const createOptionSelector = useCallback(<T extends string>(
-        currentValue: T,
-        options: T[],
-        onSelect: (value: T) => void,
-        trackingKey: string
+    // 설정 업데이트 헬퍼
+    const updateSetting = useCallback(async <K extends keyof CameraSettings>(
+        key: K,
+        value: CameraSettings[K]
     ) => {
-        return (
-            <TouchableOpacity
-                style={styles.optionSelector}
-                onPress={() => {
-                    const currentIndex = options.indexOf(currentValue);
-                    const nextIndex = (currentIndex + 1) % options.length;
-                    const nextValue = options[nextIndex];
-                    onSelect(nextValue);
-                    trackEvent('option_changed', { key: trackingKey, from: currentValue, to: nextValue });
-                }}
-                activeOpacity={0.7}
-            >
-                <Text style={styles.optionText}>{currentValue}</Text>
-            </TouchableOpacity>
-        );
-    }, [trackEvent]);
+        const newSettings = { ...settings, [key]: value };
+        setSettings(newSettings);
+        await saveSettings(newSettings);
+    }, [settings, saveSettings]);
 
+    // 시스템 진단 (로컬 시뮬레이션)
+    const runSystemDiagnostic = useCallback(async () => {
+        try {
+            // 로컬에서 시스템 상태 시뮬레이션
+            const diagnosticResult = {
+                cameraStatus: '정상',
+                networkStatus: navigator.onLine ? '연결됨' : '연결 끊김',
+                storageUsed: Math.floor(Math.random() * 60) + 20, // 20-80%
+                performance: '양호',
+            };
+
+            setSystemInfo(prev => ({
+                ...prev,
+                ...diagnosticResult,
+                lastCheck: new Date().toLocaleString(),
+            }));
+
+            Alert.alert(
+                '시스템 진단 완료',
+                `카메라: ${diagnosticResult.cameraStatus}\n` +
+                `네트워크: ${diagnosticResult.networkStatus}\n` +
+                `저장소: ${diagnosticResult.storageUsed}% 사용 중\n` +
+                `성능: ${diagnosticResult.performance}\n\n` +
+                `마지막 점검: ${new Date().toLocaleString()}`
+            );
+        } catch (error) {
+            Alert.alert('오류', '시스템 진단에 실패했습니다.');
+        }
+    }, []);
+
+    // 설정 초기화
     const handleResetSettings = useCallback(() => {
         Alert.alert(
             '설정 초기화',
-            '모든 카메라 설정을 기본값으로 초기화하시겠습니까?',
+            '모든 설정을 기본값으로 초기화하시겠습니까?',
             [
                 { text: '취소', style: 'cancel' },
                 {
                     text: '초기화',
                     style: 'destructive',
-                    onPress: () => {
-                        // Reset all settings to defaults
-                        setVideoSettings({
-                            quality: 'HD',
-                            frameRate: '30fps',
-                            bitrate: 'Auto',
-                            stabilization: true,
-                            hdr: false,
-                        });
-                        setAudioSettings({
-                            enabled: true,
-                            quality: 'Standard',
-                            noiseReduction: true,
-                            echoCancellation: true,
-                        });
-                        setRecordingSettings({
+                    onPress: async () => {
+                        const defaultSettings: CameraSettings = {
+                            videoQuality: 'HD',
+                            audioEnabled: true,
                             autoRecord: true,
-                            recordingQuality: 'HD',
-                            maxDuration: '30min',
-                            storageLimit: '5GB',
-                            autoDelete: true,
-                            deleteDays: 30,
-                        });
-                        setMotionSettings({
-                            enabled: true,
-                            sensitivity: 'Medium',
-                            zones: [],
-                            notifications: true,
-                            recordOnMotion: true,
-                            cooldownPeriod: 10,
-                        });
-                        setNetworkSettings({
-                            wifiOnly: true,
-                            bandwidth: 'Auto',
-                            port: 8080,
-                            encryption: true,
-                            maxConnections: 5,
-                        });
-                        setSecuritySettings({
-                            requirePin: true,
-                            pinExpiry: '10min',
-                            encryptStream: true,
-                            allowExternalAccess: false,
-                            logConnections: true,
-                        });
+                            motionDetection: true,
+                            motionSensitivity: 'Medium',
+                            nightVision: false,
+                        };
 
-                        trackEvent('settings_reset');
+                        setSettings(defaultSettings);
+                        await saveSettings(defaultSettings);
                         Alert.alert('완료', '설정이 초기화되었습니다.');
                     },
                 },
             ]
         );
-    }, [trackEvent]);
+    }, [saveSettings]);
 
-    const handleExportSettings = useCallback(() => {
-        // Export settings to file or share
-        const settingsData = {
-            video: videoSettings,
-            audio: audioSettings,
-            recording: recordingSettings,
-            motion: motionSettings,
-            network: networkSettings,
-            security: securitySettings,
-            exportedAt: new Date().toISOString(),
-        };
+    // 컴포넌트 마운트 시 설정 로드
+    useEffect(() => {
+        loadSettings();
+    }, [loadSettings]);
 
-        trackEvent('settings_exported');
-        Alert.alert('설정 내보내기', '설정이 성공적으로 내보내졌습니다.');
-    }, [videoSettings, audioSettings, recordingSettings, motionSettings, networkSettings, securitySettings, trackEvent]);
-
-    const handleDiagnostics = useCallback(() => {
-        trackEvent('diagnostics_requested');
-        Alert.alert(
-            '시스템 진단',
-            '카메라: 정상\n네트워크: 연결됨\n저장소: 85% 사용 중\n성능: 양호\n\n마지막 점검: ' + new Date().toLocaleString(),
-            [{ text: '확인' }]
-        );
-    }, [trackEvent]);
-
-    // Render Methods
-    const renderSection = useCallback((
-        title: string,
-        children: React.ReactNode,
-        index: number,
-        icon?: string
-    ) => (
-        <Animated.View
-            style={[
-                styles.section,
-                {
-                    opacity: sectionAnimations[index],
-                    transform: [{
-                        translateY: sectionAnimations[index].interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [20, 0]
-                        })
-                    }]
-                }
-            ]}
-        >
-            <View style={styles.sectionHeader}>
-                {icon && <Ionicons name={icon as any} size={20} color={colors.primary} />}
-                <Text style={styles.sectionTitle}>{title}</Text>
-            </View>
-            <View style={styles.sectionCard}>
-                <LinearGradient
-                    colors={[colors.surface, colors.surfaceAlt]}
-                    style={styles.sectionCardGradient}
-                >
-                    {children}
-                </LinearGradient>
-            </View>
-        </Animated.View>
-    ), [sectionAnimations]);
-
-    const renderVideoSettings = () => renderSection(
-        "영상 설정",
-        <>
-            <SettingItem
-                icon="videocam"
-                title="화질"
-                subtitle={`현재: ${videoSettings.quality}`}
-                rightElement={createOptionSelector(
-                    videoSettings.quality,
-                    ['HD', 'FHD', '4K', 'Auto'] as const,
-                    (value) => setVideoSettings(prev => ({ ...prev, quality: value })),
-                    'video_quality'
-                )}
-                showArrow={false}
-                iconColor={colors.primary}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="speedometer"
-                title="프레임 레이트"
-                subtitle={`현재: ${videoSettings.frameRate}`}
-                rightElement={createOptionSelector(
-                    videoSettings.frameRate,
-                    ['15fps', '30fps', '60fps'] as const,
-                    (value) => setVideoSettings(prev => ({ ...prev, frameRate: value })),
-                    'frame_rate'
-                )}
-                showArrow={false}
-                iconColor={colors.accent}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="wifi"
-                title="비트레이트"
-                subtitle={`현재: ${videoSettings.bitrate}`}
-                rightElement={createOptionSelector(
-                    videoSettings.bitrate,
-                    ['Auto', 'Low', 'Medium', 'High'] as const,
-                    (value) => setVideoSettings(prev => ({ ...prev, bitrate: value })),
-                    'bitrate'
-                )}
-                showArrow={false}
-                iconColor={colors.success}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="move"
-                title="손떨림 보정"
-                subtitle="영상 흔들림 자동 보정"
-                rightElement={createSwitch(
-                    videoSettings.stabilization,
-                    (value) => setVideoSettings(prev => ({ ...prev, stabilization: value })),
-                    'stabilization'
-                )}
-                showArrow={false}
-                iconColor={colors.warning}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="sunny"
-                title="HDR"
-                subtitle="고대비 영상 촬영"
-                rightElement={createSwitch(
-                    videoSettings.hdr,
-                    (value) => setVideoSettings(prev => ({ ...prev, hdr: value })),
-                    'hdr'
-                )}
-                showArrow={false}
-                iconColor={colors.accent}
-            />
-        </>,
-        0,
-        "videocam"
-    );
-
-    const renderAudioSettings = () => renderSection(
-        "오디오 설정",
-        <>
-            <SettingItem
-                icon="mic"
-                title="오디오 녹음"
-                subtitle="음성과 함께 녹화"
-                rightElement={createSwitch(
-                    audioSettings.enabled,
-                    (value) => setAudioSettings(prev => ({ ...prev, enabled: value })),
-                    'audio_enabled'
-                )}
-                showArrow={false}
-                iconColor={colors.success}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="musical-notes"
-                title="음질"
-                subtitle={`현재: ${audioSettings.quality}`}
-                rightElement={createOptionSelector(
-                    audioSettings.quality,
-                    ['Low', 'Standard', 'High'] as const,
-                    (value) => setAudioSettings(prev => ({ ...prev, quality: value })),
-                    'audio_quality'
-                )}
-                showArrow={false}
-                iconColor={colors.primary}
-                disabled={!audioSettings.enabled}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="volume-off"
-                title="노이즈 제거"
-                subtitle="배경 소음 자동 제거"
-                rightElement={createSwitch(
-                    audioSettings.noiseReduction,
-                    (value) => setAudioSettings(prev => ({ ...prev, noiseReduction: value })),
-                    'noise_reduction'
-                )}
-                showArrow={false}
-                iconColor={colors.accent}
-                disabled={!audioSettings.enabled}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="pulse"
-                title="에코 제거"
-                subtitle="음성 에코 자동 제거"
-                rightElement={createSwitch(
-                    audioSettings.echoCancellation,
-                    (value) => setAudioSettings(prev => ({ ...prev, echoCancellation: value })),
-                    'echo_cancellation'
-                )}
-                showArrow={false}
-                iconColor={colors.warning}
-                disabled={!audioSettings.enabled}
-            />
-        </>,
-        1,
-        "mic"
-    );
-
-    const renderRecordingSettings = () => renderSection(
-        "녹화 설정",
-        <>
-            <SettingItem
-                icon="radio-button-on"
-                title="자동 녹화"
-                subtitle="동작 감지 시 자동 녹화"
-                rightElement={createSwitch(
-                    recordingSettings.autoRecord,
-                    (value) => setRecordingSettings(prev => ({ ...prev, autoRecord: value })),
-                    'auto_record'
-                )}
-                showArrow={false}
-                iconColor={colors.error}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="film"
-                title="녹화 화질"
-                subtitle={`현재: ${recordingSettings.recordingQuality}`}
-                rightElement={createOptionSelector(
-                    recordingSettings.recordingQuality,
-                    ['HD', 'FHD', '4K'] as const,
-                    (value) => setRecordingSettings(prev => ({ ...prev, recordingQuality: value })),
-                    'recording_quality'
-                )}
-                showArrow={false}
-                iconColor={colors.primary}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="time"
-                title="최대 녹화 시간"
-                subtitle={`현재: ${recordingSettings.maxDuration}`}
-                rightElement={createOptionSelector(
-                    recordingSettings.maxDuration,
-                    ['10min', '30min', '1hour', 'unlimited'] as const,
-                    (value) => setRecordingSettings(prev => ({ ...prev, maxDuration: value })),
-                    'max_duration'
-                )}
-                showArrow={false}
-                iconColor={colors.warning}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="archive"
-                title="저장 용량 제한"
-                subtitle={`현재: ${recordingSettings.storageLimit}`}
-                rightElement={createOptionSelector(
-                    recordingSettings.storageLimit,
-                    ['1GB', '5GB', '10GB', '50GB', 'unlimited'] as const,
-                    (value) => setRecordingSettings(prev => ({ ...prev, storageLimit: value })),
-                    'storage_limit'
-                )}
-                showArrow={false}
-                iconColor={colors.accent}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="trash"
-                title="자동 삭제"
-                subtitle={`${recordingSettings.deleteDays}일 후 자동 삭제`}
-                rightElement={createSwitch(
-                    recordingSettings.autoDelete,
-                    (value) => setRecordingSettings(prev => ({ ...prev, autoDelete: value })),
-                    'auto_delete'
-                )}
-                showArrow={false}
-                iconColor={colors.error}
-            />
-        </>,
-        2,
-        "radio-button-on"
-    );
-
-    const renderMotionSettings = () => renderSection(
-        "동작 감지",
-        <>
-            <SettingItem
-                icon="walk"
-                title="동작 감지"
-                subtitle="움직임 자동 감지"
-                rightElement={createSwitch(
-                    motionSettings.enabled,
-                    (value) => setMotionSettings(prev => ({ ...prev, enabled: value })),
-                    'motion_enabled'
-                )}
-                showArrow={false}
-                iconColor={colors.success}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="eye"
-                title="감지 민감도"
-                subtitle={`현재: ${motionSettings.sensitivity}`}
-                rightElement={createOptionSelector(
-                    motionSettings.sensitivity,
-                    ['Low', 'Medium', 'High'] as const,
-                    (value) => setMotionSettings(prev => ({ ...prev, sensitivity: value })),
-                    'motion_sensitivity'
-                )}
-                showArrow={false}
-                iconColor={colors.warning}
-                disabled={!motionSettings.enabled}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="notifications"
-                title="동작 알림"
-                subtitle="동작 감지 시 알림 전송"
-                rightElement={createSwitch(
-                    motionSettings.notifications,
-                    (value) => setMotionSettings(prev => ({ ...prev, notifications: value })),
-                    'motion_notifications'
-                )}
-                showArrow={false}
-                iconColor={colors.primary}
-                disabled={!motionSettings.enabled}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="videocam"
-                title="동작 시 녹화"
-                subtitle="동작 감지 시 자동 녹화"
-                rightElement={createSwitch(
-                    motionSettings.recordOnMotion,
-                    (value) => setMotionSettings(prev => ({ ...prev, recordOnMotion: value })),
-                    'record_on_motion'
-                )}
-                showArrow={false}
-                iconColor={colors.accent}
-                disabled={!motionSettings.enabled}
-            />
-        </>,
-        3,
-        "walk"
-    );
-
-    const renderNetworkSettings = () => renderSection(
-        "네트워크 설정",
-        <>
-            <SettingItem
-                icon="wifi"
-                title="Wi-Fi 전용"
-                subtitle="Wi-Fi 연결에서만 스트리밍"
-                rightElement={createSwitch(
-                    networkSettings.wifiOnly,
-                    (value) => setNetworkSettings(prev => ({ ...prev, wifiOnly: value })),
-                    'wifi_only'
-                )}
-                showArrow={false}
-                iconColor={colors.primary}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="speedometer"
-                title="대역폭 제한"
-                subtitle={`현재: ${networkSettings.bandwidth}`}
-                rightElement={createOptionSelector(
-                    networkSettings.bandwidth,
-                    ['Auto', 'Low', 'Medium', 'High'] as const,
-                    (value) => setNetworkSettings(prev => ({ ...prev, bandwidth: value })),
-                    'bandwidth'
-                )}
-                showArrow={false}
-                iconColor={colors.success}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="server"
-                title="포트 번호"
-                subtitle={`현재: ${networkSettings.port}`}
-                onPress={() => Alert.alert('포트 설정', '포트 번호 변경 기능은 준비 중입니다.')}
-                iconColor={colors.accent}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="shield-checkmark"
-                title="암호화"
-                subtitle="스트림 데이터 암호화"
-                rightElement={createSwitch(
-                    networkSettings.encryption,
-                    (value) => setNetworkSettings(prev => ({ ...prev, encryption: value })),
-                    'encryption'
-                )}
-                showArrow={false}
-                iconColor={colors.warning}
-            />
-        </>,
-        4,
-        "wifi"
-    );
-
-    const renderAdvancedSettings = () => renderSection(
-        "고급 설정",
-        <>
-            <SettingItem
-                icon="analytics"
-                title="시스템 진단"
-                subtitle="카메라 상태 및 성능 점검"
-                onPress={handleDiagnostics}
-                iconColor={colors.primary}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="download"
-                title="설정 내보내기"
-                subtitle="현재 설정을 파일로 저장"
-                onPress={handleExportSettings}
-                iconColor={colors.success}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="refresh"
-                title="설정 초기화"
-                subtitle="모든 설정을 기본값으로 복원"
-                onPress={handleResetSettings}
-                iconColor={colors.error}
-            />
-            <View style={styles.divider} />
-            <SettingItem
-                icon="information-circle"
-                title="카메라 정보"
-                subtitle="하드웨어 및 소프트웨어 정보"
-                onPress={() => Alert.alert(
-                    '카메라 정보',
-                    'MIMO 홈캠 v1.0.0\n모델: Professional\n해상도: 4K 지원\n프레임률: 최대 60fps\n\n© 2024 MIMO Team'
-                )}
-                iconColor={colors.textSecondary}
-            />
-        </>,
-        5,
-        "settings"
-    );
-
-    // Main Render
     return (
-        <>
+        <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-            <View style={styles.container}>
-                <LinearGradient
-                    colors={[colors.background, colors.surfaceAlt]}
-                    style={styles.backgroundGradient}
-                />
+            <LinearGradient
+                colors={[colors.background, colors.surfaceAlt]}
+                style={styles.backgroundGradient}
+            />
 
-                <SafeAreaView style={styles.safeArea}>
-                    {/* Custom Header */}
-                    <View style={styles.customHeader}>
-                        <TouchableOpacity
-                            style={styles.backButton}
-                            onPress={handleBackPress}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons name="arrow-back" size={24} color={enterpriseColors.gray700} />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>카메라 설정</Text>
-                        <View style={styles.headerSpacer} />
-                    </View>
-
-                    <ScrollView
-                        style={styles.content}
-                        contentContainerStyle={styles.scrollContent}
-                        showsVerticalScrollIndicator={false}
+            <SafeAreaView style={styles.safeArea}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.headerButton,
+                            pressed && styles.headerButtonPressed,
+                        ]}
+                        onPress={() => navigation.goBack()}
                     >
-                        {renderVideoSettings()}
-                        {renderAudioSettings()}
-                        {renderRecordingSettings()}
-                        {renderMotionSettings()}
-                        {renderNetworkSettings()}
-                        {renderAdvancedSettings()}
-                    </ScrollView>
-                </SafeAreaView>
-            </View>
-        </>
+                        <Ionicons name="arrow-back" size={24} color={colors.text} />
+                    </Pressable>
+
+                    <Text style={styles.headerTitle}>카메라 설정</Text>
+
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.headerButton,
+                            pressed && styles.headerButtonPressed,
+                        ]}
+                        onPress={handleResetSettings}
+                        disabled={isSaving}
+                    >
+                        {isSaving ? (
+                            <ActivityIndicator size="small" color={colors.textSecondary} />
+                        ) : (
+                            <Ionicons name="refresh" size={20} color={colors.textSecondary} />
+                        )}
+                    </Pressable>
+                </View>
+
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {isLoading ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color={colors.primary} />
+                            <Text style={styles.loadingText}>설정을 불러오는 중...</Text>
+                        </View>
+                    ) : (
+                        <>
+                            {/* 기본 설정 */}
+                            <View style={styles.section}>
+                                <Text style={styles.sectionTitle}>기본 설정</Text>
+                                <View style={styles.settingCard}>
+                                    <SettingItem
+                                        icon="videocam"
+                                        title="영상 화질"
+                                        subtitle={`현재: ${settings.videoQuality}`}
+                                        rightElement={
+                                            <OptionSelector
+                                                currentValue={settings.videoQuality}
+                                                options={['HD', 'FHD', '4K']}
+                                                onSelect={(value) => updateSetting('videoQuality', value)}
+                                            />
+                                        }
+                                        iconColor={colors.primary}
+                                    />
+
+                                    <View style={styles.divider} />
+
+                                    <SettingItem
+                                        icon="mic"
+                                        title="오디오 녹음"
+                                        subtitle="음성과 함께 녹화"
+                                        rightElement={
+                                            <CustomSwitch
+                                                value={settings.audioEnabled}
+                                                onValueChange={(value) => updateSetting('audioEnabled', value)}
+                                            />
+                                        }
+                                        iconColor={colors.success}
+                                    />
+
+                                    <View style={styles.divider} />
+
+                                    <SettingItem
+                                        icon="moon"
+                                        title="야간 모드"
+                                        subtitle="어두운 환경에서 영상 개선"
+                                        rightElement={
+                                            <CustomSwitch
+                                                value={settings.nightVision}
+                                                onValueChange={(value) => updateSetting('nightVision', value)}
+                                            />
+                                        }
+                                        iconColor={colors.accent}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* 녹화 및 동작 감지 */}
+                            <View style={styles.section}>
+                                <Text style={styles.sectionTitle}>녹화 및 동작 감지</Text>
+                                <View style={styles.settingCard}>
+                                    <SettingItem
+                                        icon="radio-button-on"
+                                        title="자동 녹화"
+                                        subtitle="동작 감지 시 자동 녹화"
+                                        rightElement={
+                                            <CustomSwitch
+                                                value={settings.autoRecord}
+                                                onValueChange={(value) => updateSetting('autoRecord', value)}
+                                            />
+                                        }
+                                        iconColor={colors.error}
+                                    />
+
+                                    <View style={styles.divider} />
+
+                                    <SettingItem
+                                        icon="walk"
+                                        title="동작 감지"
+                                        subtitle="움직임 자동 감지"
+                                        rightElement={
+                                            <CustomSwitch
+                                                value={settings.motionDetection}
+                                                onValueChange={(value) => updateSetting('motionDetection', value)}
+                                            />
+                                        }
+                                        iconColor={colors.success}
+                                    />
+
+                                    <View style={styles.divider} />
+
+                                    <SettingItem
+                                        icon="eye"
+                                        title="감지 민감도"
+                                        subtitle={`현재: ${settings.motionSensitivity}`}
+                                        rightElement={
+                                            <OptionSelector
+                                                currentValue={settings.motionSensitivity}
+                                                options={['Low', 'Medium', 'High']}
+                                                onSelect={(value) => updateSetting('motionSensitivity', value)}
+                                            />
+                                        }
+                                        iconColor={colors.warning}
+                                        disabled={!settings.motionDetection}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* 시스템 정보 */}
+                            <View style={styles.section}>
+                                <Text style={styles.sectionTitle}>시스템 정보</Text>
+                                <View style={styles.settingCard}>
+                                    <SettingItem
+                                        icon="analytics"
+                                        title="시스템 상태"
+                                        subtitle={`카메라: ${systemInfo.cameraStatus} • 네트워크: ${systemInfo.networkStatus}`}
+                                        onPress={runSystemDiagnostic}
+                                        iconColor={colors.primary}
+                                    />
+
+                                    <View style={styles.divider} />
+
+                                    <SettingItem
+                                        icon="information-circle"
+                                        title="저장소 사용량"
+                                        subtitle={`${systemInfo.storageUsed}% 사용 중`}
+                                        onPress={() => Alert.alert(
+                                            '저장소 정보',
+                                            `현재 사용량: ${systemInfo.storageUsed}%\n` +
+                                            `상태: ${systemInfo.storageUsed > 80 ? '정리 필요' : '양호'}\n\n` +
+                                            `마지막 점검: ${systemInfo.lastCheck}`
+                                        )}
+                                        iconColor={systemInfo.storageUsed > 80 ? colors.warning : colors.success}
+                                    />
+                                </View>
+                            </View>
+                        </>
+                    )}
+                </ScrollView>
+            </SafeAreaView>
+        </View>
     );
-});
+}
 
-CameraSettingsScreen.displayName = 'CameraSettingsScreen';
-
-export default CameraSettingsScreen;
-
-// Enhanced Styles
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: enterpriseColors.gray50,
+        backgroundColor: colors.background,
     },
     backgroundGradient: {
         position: 'absolute',
@@ -894,106 +522,160 @@ const styles = StyleSheet.create({
     },
     safeArea: {
         flex: 1,
-        paddingTop: 0,
     },
-    content: {
+
+    // Header
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        backgroundColor: colors.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    headerButton: {
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: colors.background,
+        minWidth: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerButtonPressed: {
+        backgroundColor: colors.border,
+        transform: [{ scale: 0.95 }],
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: colors.text,
+    },
+
+    // Scroll Content
+    scrollView: {
         flex: 1,
     },
     scrollContent: {
-        padding: spacing.lg,
-        paddingBottom: spacing.xl * 2,
+        padding: 20,
+        paddingBottom: 40,
     },
 
-    // Custom Header
-    customHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        backgroundColor: 'transparent',
-        borderBottomWidth: 1,
-        borderBottomColor: enterpriseColors.gray200,
-    },
-    backButton: {
-        padding: spacing.sm,
-        borderRadius: radius.md,
-        backgroundColor: enterpriseColors.gray100,
-    },
-    headerTitle: {
-        ...typography.h2,
-        color: enterpriseColors.gray800,
-        fontWeight: '700',
-        flex: 1,
-        textAlign: 'center',
-    },
-    headerSpacer: {
-        width: 40,
-    },
-
-    // Settings Sections
-    settingsSection: {
-        marginBottom: spacing.lg,
-    },
-    settingsCard: {
-        borderRadius: radius.xl,
-        padding: spacing.lg,
-        borderWidth: 1,
-        borderColor: enterpriseColors.gray200,
-        ...elevation['1'],
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.lg,
+    // Section
+    section: {
+        marginBottom: 24,
     },
     sectionTitle: {
-        ...typography.h3,
-        color: enterpriseColors.gray800,
-        marginLeft: spacing.sm,
+        fontSize: 16,
         fontWeight: '600',
+        color: colors.text,
+        marginBottom: 12,
+        paddingHorizontal: 4,
     },
+    settingCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+
+    // Setting Items
     settingItem: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: enterpriseColors.gray200,
+        justifyContent: 'space-between',
+        padding: 20,
+        minHeight: 64,
     },
-    settingItemLast: {
-        borderBottomWidth: 0,
+    settingItemPressed: {
+        backgroundColor: colors.primary + '08',
     },
-    settingInfo: {
+    settingItemDisabled: {
+        opacity: 0.5,
+    },
+    settingLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: 16,
+    },
+    settingIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    settingContent: {
         flex: 1,
     },
     settingTitle: {
-        ...typography.bodyLg,
-        color: enterpriseColors.gray800,
-        fontWeight: '600',
+        fontSize: 16,
+        fontWeight: '500',
+        color: colors.text,
         marginBottom: 2,
     },
-    settingDescription: {
-        ...typography.body,
-        color: enterpriseColors.gray600,
+    settingSubtitle: {
+        fontSize: 14,
+        color: colors.textSecondary,
     },
-    settingValue: {
-        ...typography.body,
-        color: enterpriseColors.primary,
+    settingRight: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    disabledText: {
+        color: colors.textSecondary,
+    },
+
+    // Option Selector
+    optionSelector: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.background,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        gap: 8,
+        minWidth: 80,
+        justifyContent: 'center',
+    },
+    optionSelectorPressed: {
+        backgroundColor: colors.border,
+    },
+    optionText: {
+        fontSize: 14,
         fontWeight: '600',
+        color: colors.primary,
     },
-    settingSwitch: {
+
+    // Switch
+    switch: {
         transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
     },
-    settingButton: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.md,
-        backgroundColor: enterpriseColors.primary + '10',
+
+    // Divider
+    divider: {
+        height: 1,
+        backgroundColor: colors.border,
+        marginLeft: 76, // icon width + gap + padding
     },
-    settingButtonText: {
-        ...typography.body,
-        color: enterpriseColors.primary,
-        fontWeight: '600',
+
+    // Loading
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    loadingText: {
+        fontSize: 16,
+        color: colors.textSecondary,
+        marginTop: 16,
+        textAlign: 'center',
     },
 }); 

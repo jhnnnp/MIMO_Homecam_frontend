@@ -16,7 +16,7 @@ import {
 } from '@/shared/types/hooks';
 import streamingService from '@/features/../shared/services/core/streamingService';
 import recordingService from '../../recording/services/recordingService';
-import settingsService from '../../settings/services/settingsService';
+import SettingsService from '@/shared/services/SettingsService';
 import { logger, logStreaming, logStreamingError } from '@/shared/utils/logger';
 
 // ============================================================================
@@ -128,15 +128,23 @@ export const useCameraStream = (): HookReturn<StreamState, StreamActions> => {
 
     const getOptimalStreamQuality = useCallback(async (): Promise<StreamQuality> => {
         try {
-            // 설정 서비스에서 사용자 설정 가져오기
-            const userSettings = await settingsService.getStreamSettings();
+            // 전역 사용자 설정 조회 (Plan A)
+            const core = await SettingsService.getCoreSettings();
 
-            if (userSettings?.quality) {
-                return QUALITY_PRESETS[userSettings.quality] || DEFAULT_STREAM_QUALITY;
+            if (core?.recording_quality) {
+                const map: Record<string, keyof typeof QUALITY_PRESETS> = {
+                    '480p': 'low',
+                    '720p': 'high',
+                    '1080p': 'ultra',
+                    '4K': 'ultra',
+                };
+                const presetKey = map[core.recording_quality] || 'high';
+                return QUALITY_PRESETS[presetKey] || DEFAULT_STREAM_QUALITY;
             }
 
             // 네트워크 상태에 따른 자동 품질 조정
-            const networkInfo = await settingsService.getNetworkInfo();
+            // TODO: 네트워크 정보 연동 필요 시 SettingsService의 custom 설정으로 확장
+            const networkInfo: any = null;
 
             if (networkInfo?.type === 'wifi' && networkInfo?.speed === 'fast') {
                 return QUALITY_PRESETS.high;

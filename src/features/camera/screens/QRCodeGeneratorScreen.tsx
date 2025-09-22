@@ -19,7 +19,10 @@ import {
     Dimensions,
     StatusBar,
     Share,
-    Platform
+    Platform,
+    Pressable,
+    ScrollView,
+    RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,14 +32,15 @@ import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 
-// Design System
-import { colors, spacing, radius } from '@/design/tokens';
+// Design Tokens
+import { colors, spacing, radius, elevation, typography } from '@/design/tokens';
 
 // Navigation Types
 import { CameraStackParamList } from '@/app/navigation/AppNavigator';
 
 // Hooks
 import { useCameraConnection } from '../../connection/hooks/useCameraConnection';
+import { getApiBaseUrl, getWsBaseUrl } from '@/app/config';
 
 // Components
 import LoadingState from '@/shared/components/feedback/LoadingState';
@@ -67,6 +71,8 @@ interface QRData {
     timestamp: number;
     version: string;
     expiresAt: number;
+    apiUrl?: string;
+    wsUrl?: string;
 }
 
 const QRCodeGeneratorScreen: React.FC<QRCodeGeneratorScreenProps> = ({ navigation, route }) => {
@@ -78,7 +84,7 @@ const QRCodeGeneratorScreen: React.FC<QRCodeGeneratorScreenProps> = ({ navigatio
     const [timeLeft, setTimeLeft] = useState<number>(EXPIRY_TIME);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // QR 코드 생성
+    // QR 코드 생성 (원래 로직 유지)
     const generateQRCode = useCallback(async () => {
         setIsGenerating(true);
         try {
@@ -93,7 +99,9 @@ const QRCodeGeneratorScreen: React.FC<QRCodeGeneratorScreenProps> = ({ navigatio
                     connectionId: pin,
                     timestamp: now,
                     version: '1.0',
-                    expiresAt: now + EXPIRY_TIME
+                    expiresAt: now + EXPIRY_TIME,
+                    apiUrl: getApiBaseUrl(),
+                    wsUrl: `${getWsBaseUrl()}/ws`
                 };
 
                 setQrData(newQrData);
@@ -125,9 +133,29 @@ const QRCodeGeneratorScreen: React.FC<QRCodeGeneratorScreenProps> = ({ navigatio
         return () => clearInterval(interval);
     }, [qrData]);
 
-    // 초기 QR 코드 생성
+    // 초기 QR 코드 생성 (마운트 보장 + 재시도)
     useEffect(() => {
-        generateQRCode();
+        let cancelled = false;
+
+        const init = async () => {
+            try {
+                // 약간의 지연 후 생성 (네비게이션 전환/토큰 준비 시간 확보)
+                await new Promise(r => setTimeout(r, 50));
+                if (!cancelled) {
+                    await generateQRCode();
+                }
+                // PIN 미생성 시 1회 자동 재시도
+                if (!cancelled && !qrData) {
+                    await new Promise(r => setTimeout(r, 300));
+                    if (!cancelled) {
+                        await generateQRCode();
+                    }
+                }
+            } catch { }
+        };
+
+        init();
+        return () => { cancelled = true; };
     }, []);
 
     // 시간 포맷팅
@@ -175,256 +203,560 @@ const QRCodeGeneratorScreen: React.FC<QRCodeGeneratorScreenProps> = ({ navigatio
             <ErrorState
                 message={connectionState.error}
                 onRetry={generateQRCode}
-                showRetryButton
+                buttonText="다시 시도"
             />
         );
     }
 
     return (
-        <>
-            <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+        <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
             <LinearGradient
-                colors={['#f8f9fa', '#e9ecef']}
-                style={styles.container}
-            >
-                <SafeAreaView style={styles.safeArea}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <TouchableOpacity
-                            style={styles.backButton}
-                            onPress={() => navigation.goBack()}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons name="arrow-back" size={24} color="#333" />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>QR 코드 연결</Text>
-                        <TouchableOpacity
-                            style={styles.refreshButton}
-                            onPress={generateQRCode}
-                            activeOpacity={0.7}
-                            disabled={isGenerating}
-                        >
-                            <Ionicons name="refresh" size={24} color="#007AFF" />
-                        </TouchableOpacity>
-                    </View>
+                colors={[colors.background, colors.surfaceAlt]}
+                style={styles.backgroundGradient}
+            />
 
-                    {/* Content */}
-                    <View style={styles.content}>
-                        {qrData && (
-                            <>
-                                {/* QR Code */}
+            <SafeAreaView style={styles.safeArea}>
+                {/* Header - 홈캠 목록 스타일 */}
+                <View style={styles.header}>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.headerButton,
+                            pressed && styles.headerButtonPressed,
+                        ]}
+                        onPress={() => navigation.goBack()}
+                    >
+                        <Ionicons name="arrow-back" size={24} color={colors.text} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>QR 코드 연결</Text>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.headerButton,
+                            pressed && styles.headerButtonPressed,
+                        ]}
+                        onPress={generateQRCode}
+                        disabled={isGenerating}
+                    >
+                        <Ionicons
+                            name="refresh"
+                            size={20}
+                            color={isGenerating ? colors.textSecondary : colors.primary}
+                        />
+                    </Pressable>
+                </View>
+
+                {/* Content */}
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={true}
+                    scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={isGenerating}
+                            onRefresh={generateQRCode}
+                            tintColor={colors.textSecondary}
+                        />
+                    }
+                >
+                    {!qrData ? (
+                        <ErrorState
+                            message="QR/PIN 정보를 불러오지 못했습니다. 다시 시도해 주세요."
+                            onRetry={generateQRCode}
+                            buttonText="다시 시도"
+                        />
+                    ) : (
+                        <>
+                            {/* Status Card - 홈캠 스타일 */}
+                            <View style={styles.statusCard}>
+                                <View style={styles.statusHeader}>
+                                    <View style={styles.statusInfo}>
+                                        <View style={styles.statusIndicator}>
+                                            <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+                                            <Text style={styles.statusText}>{cameraName}</Text>
+                                        </View>
+                                        <Text style={styles.statusSubtext}>
+                                            {connectionState.viewerCount > 0
+                                                ? `${connectionState.viewerCount}명 연결됨`
+                                                : '연결 대기 중'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.connectionStatus}>
+                                        <View style={[styles.connectionDot, { backgroundColor: colors.success }]} />
+                                        <Text style={styles.connectionText}>온라인</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* QR Code Card - 메인 카드 */}
+                            <View style={styles.mainCard}>
+                                <View style={styles.cardHeader}>
+                                    <LinearGradient
+                                        colors={[colors.primary + '20', colors.accent + '15']}
+                                        style={styles.cardIcon}
+                                    >
+                                        <Ionicons name="qr-code" size={24} color={colors.primary} />
+                                    </LinearGradient>
+                                    <View style={styles.cardInfo}>
+                                        <Text style={styles.cardTitle}>QR 코드</Text>
+                                        <Text style={styles.cardSubtitle}>뷰어 앱에서 스캔하세요</Text>
+                                    </View>
+                                    <View style={[
+                                        styles.timerBadge,
+                                        timeLeft <= 0 && styles.timerBadgeExpired,
+                                        timeLeft < 120000 && timeLeft > 0 && styles.timerBadgeWarning,
+                                    ]}>
+                                        <Ionicons name="time" size={12} color="white" />
+                                        <Text style={styles.timerText}>
+                                            {timeLeft <= 0 ? '만료됨' : formatTime(timeLeft)}
+                                        </Text>
+                                    </View>
+                                </View>
+
                                 <View style={styles.qrContainer}>
                                     <QRCode
                                         value={JSON.stringify(qrData)}
                                         size={QR_SIZE}
                                         backgroundColor="white"
-                                        color="#333"
-                                        logoSize={40}
+                                        color={colors.text}
+                                        logoSize={30}
                                         logoMargin={4}
-                                        logoBorderRadius={8}
+                                        logoBorderRadius={6}
                                     />
                                 </View>
+                            </View>
 
-                                {/* Camera Info */}
-                                <View style={styles.infoContainer}>
-                                    <Text style={styles.cameraName}>{cameraName}</Text>
+                            {/* PIN Code Card */}
+                            <View style={styles.pinCard}>
+                                <View style={styles.cardHeader}>
+                                    <LinearGradient
+                                        colors={[colors.accent + '20', colors.primary + '15']}
+                                        style={styles.cardIcon}
+                                    >
+                                        <Ionicons name="keypad" size={24} color={colors.accent} />
+                                    </LinearGradient>
+                                    <View style={styles.cardInfo}>
+                                        <Text style={styles.cardTitle}>PIN 코드</Text>
+                                        <Text style={styles.cardSubtitle}>6자리 숫자를 입력하세요</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.pinDisplay}>
                                     <Text style={styles.pinCode}>{qrData.pinCode}</Text>
-                                    <Text style={styles.pinLabel}>6자리 PIN 코드</Text>
                                 </View>
+                            </View>
 
-                                {/* Timer */}
-                                <View style={[
-                                    styles.timerContainer,
-                                    { backgroundColor: timeLeft < 60000 ? '#ff6b6b' : '#4ecdc4' }
-                                ]}>
-                                    <Ionicons name="time" size={16} color="white" />
-                                    <Text style={styles.timerText}>
-                                        {timeLeft > 0 ? `${formatTime(timeLeft)} 남음` : '만료됨'}
-                                    </Text>
+                            {/* Action Cards - 홈캠 스타일 */}
+                            <View style={styles.actionsContainer}>
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.actionCard,
+                                        styles.primaryAction,
+                                        pressed && styles.actionCardPressed,
+                                    ]}
+                                    onPress={() => copyToClipboard(qrData.pinCode, 'PIN 코드')}
+                                >
+                                    <LinearGradient
+                                        colors={[colors.primary, '#5AC8FA']}
+                                        style={styles.actionGradient}
+                                    >
+                                        <View style={styles.actionIcon}>
+                                            <Ionicons name="copy" size={20} color="white" />
+                                        </View>
+                                        <View style={styles.actionInfo}>
+                                            <Text style={styles.actionTitle}>PIN 복사</Text>
+                                            <Text style={styles.actionSubtitle}>클립보드에 복사하기</Text>
+                                        </View>
+                                        <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
+                                    </LinearGradient>
+                                </Pressable>
+
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.actionCard,
+                                        styles.secondaryAction,
+                                        pressed && styles.actionCardPressed,
+                                    ]}
+                                    onPress={shareQRData}
+                                >
+                                    <View style={styles.actionContent}>
+                                        <LinearGradient
+                                            colors={[colors.accent + '20', colors.accent + '10']}
+                                            style={styles.actionIconSecondary}
+                                        >
+                                            <Ionicons name="share" size={20} color={colors.accent} />
+                                        </LinearGradient>
+                                        <View style={styles.actionInfo}>
+                                            <Text style={styles.actionTitleSecondary}>연결 정보 공유</Text>
+                                            <Text style={styles.actionSubtitleSecondary}>다른 앱으로 공유하기</Text>
+                                        </View>
+                                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                                    </View>
+                                </Pressable>
+                            </View>
+
+                            {/* Help Section */}
+                            {timeLeft < 120000 && (
+                                <View style={styles.helpSection}>
+                                    <Text style={styles.helpTitle}>빠른 액세스</Text>
+                                    <View style={styles.helpCard}>
+                                        <Pressable
+                                            style={styles.helpItem}
+                                            onPress={generateQRCode}
+                                            disabled={isGenerating}
+                                        >
+                                            <LinearGradient
+                                                colors={[colors.warning + '20', colors.warning + '10']}
+                                                style={styles.helpIcon}
+                                            >
+                                                <Ionicons name="refresh" size={16} color={colors.warning} />
+                                            </LinearGradient>
+                                            <Text style={styles.helpText}>
+                                                {isGenerating ? '새 코드 생성 중...' : '새 QR/PIN 코드 생성하기'}
+                                            </Text>
+                                        </Pressable>
+                                    </View>
                                 </View>
-
-                                {/* Instructions */}
-                                <Text style={styles.instructions}>
-                                    📱 뷰어 앱에서 위 QR 코드를 스캔하거나{'\n'}
-                                    PIN 코드를 직접 입력하세요
-                                </Text>
-
-                                {/* Action Buttons */}
-                                <View style={styles.buttonContainer}>
-                                    <TouchableOpacity
-                                        style={[styles.actionButton, styles.primaryButton]}
-                                        onPress={() => copyToClipboard(qrData.pinCode, 'PIN 코드')}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Ionicons name="copy" size={20} color="white" />
-                                        <Text style={styles.buttonText}>PIN 복사</Text>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity
-                                        style={[styles.actionButton, styles.secondaryButton]}
-                                        onPress={shareQRData}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Ionicons name="share" size={20} color="#007AFF" />
-                                        <Text style={[styles.buttonText, { color: '#007AFF' }]}>공유</Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                {/* Regenerate Button */}
-                                {timeLeft < 120000 && ( // 2분 남았을 때 표시
-                                    <TouchableOpacity
-                                        style={styles.regenerateButton}
-                                        onPress={generateQRCode}
-                                        activeOpacity={0.8}
-                                        disabled={isGenerating}
-                                    >
-                                        <Ionicons name="refresh-circle" size={20} color="#ff6b6b" />
-                                        <Text style={styles.regenerateText}>새 코드 생성</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </>
-                        )}
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
-        </>
+                            )}
+                        </>
+                    )}
+                </ScrollView>
+            </SafeAreaView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: colors.background,
+    },
+    backgroundGradient: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
     },
     safeArea: {
         flex: 1,
     },
+
+    // Header - 홈캠 목록 스타일
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.1)',
+        borderBottomColor: colors.border,
     },
-    backButton: {
-        padding: spacing.sm,
-        borderRadius: radius.md,
-        backgroundColor: 'rgba(255,255,255,0.8)',
+    headerButton: {
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: colors.background,
+        minWidth: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerButtonPressed: {
+        backgroundColor: colors.border,
+        transform: [{ scale: 0.95 }],
     },
     headerTitle: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: colors.text,
     },
-    refreshButton: {
-        padding: spacing.sm,
-        borderRadius: radius.md,
-        backgroundColor: 'rgba(255,255,255,0.8)',
+
+    // Content
+    scroll: {
+        flex: 1,
     },
     content: {
-        flex: 1,
         alignItems: 'center',
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: spacing.container,
         paddingTop: spacing.xl,
+        paddingBottom: spacing['3xl'],
+        minHeight: '100%',
+    },
+
+    // Status Card - 홈캠 스타일
+    statusCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+        width: '100%',
+    },
+    statusHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    statusInfo: {
+        flex: 1,
+    },
+    statusIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 8,
+    },
+    statusText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.text,
+    },
+    statusSubtext: {
+        fontSize: 14,
+        color: colors.textSecondary,
+    },
+    connectionStatus: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.background,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    connectionDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        marginRight: 6,
+    },
+    connectionText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.textSecondary,
+    },
+
+    // Main QR Card
+    mainCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 4,
+        width: '100%',
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    cardIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    cardInfo: {
+        flex: 1,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.text,
+        marginBottom: 2,
+    },
+    cardSubtitle: {
+        fontSize: 14,
+        color: colors.textSecondary,
     },
     qrContainer: {
         backgroundColor: 'white',
         padding: spacing.lg,
-        borderRadius: radius.xl,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
-        marginBottom: spacing.xl,
-    },
-    infoContainer: {
+        borderRadius: radius.lg,
         alignItems: 'center',
-        marginBottom: spacing.lg,
+        ...elevation["1"],
     },
-    cameraName: {
-        fontSize: 18,
+
+    // PIN Code Card
+    pinCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+        width: '100%',
+    },
+    timerBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.success,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        gap: 4,
+    },
+    timerBadgeWarning: {
+        backgroundColor: colors.warning,
+    },
+    timerBadgeExpired: {
+        backgroundColor: colors.error,
+    },
+    timerText: {
+        fontSize: 12,
         fontWeight: '600',
-        color: '#333',
-        marginBottom: spacing.sm,
+        color: 'white',
+    },
+    pinDisplay: {
+        alignItems: 'center',
+        backgroundColor: colors.background,
+        padding: spacing.xl,
+        borderRadius: radius.md,
+        marginTop: 12,
     },
     pinCode: {
         fontSize: 32,
-        fontWeight: 'bold',
-        color: '#007AFF',
-        letterSpacing: 4,
+        fontWeight: '700',
+        color: colors.primary,
+        letterSpacing: 8,
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-        marginBottom: spacing.xs,
     },
-    pinLabel: {
-        fontSize: 14,
-        color: '#666',
-        fontWeight: '500',
+
+    // Action Cards - 홈캠 스타일
+    actionsContainer: {
+        gap: 12,
+        marginBottom: 24,
+        width: '100%',
     },
-    timerContainer: {
+    actionCard: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    actionCardPressed: {
+        transform: [{ scale: 0.98 }],
+    },
+    primaryAction: {
+        marginBottom: 4,
+    },
+    secondaryAction: {
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    actionGradient: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.full,
-        marginBottom: spacing.lg,
+        padding: 20,
+        gap: 16,
     },
-    timerText: {
-        color: 'white',
-        fontWeight: '600',
-        marginLeft: spacing.xs,
-        fontSize: 14,
-    },
-    instructions: {
-        fontSize: 16,
-        color: '#666',
-        textAlign: 'center',
-        lineHeight: 24,
-        marginBottom: spacing.xl,
-        paddingHorizontal: spacing.md,
-    },
-    buttonContainer: {
+    actionContent: {
         flexDirection: 'row',
-        gap: spacing.md,
-        width: '100%',
-        marginBottom: spacing.lg,
+        alignItems: 'center',
+        padding: 20,
+        gap: 16,
     },
-    actionButton: {
-        flex: 1,
-        flexDirection: 'row',
+    actionIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.2)',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: spacing.lg,
-        borderRadius: radius.lg,
-        gap: spacing.sm,
     },
-    primaryButton: {
-        backgroundColor: '#007AFF',
+    actionIconSecondary: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    secondaryButton: {
-        backgroundColor: 'white',
-        borderWidth: 2,
-        borderColor: '#007AFF',
+    actionInfo: {
+        flex: 1,
     },
-    buttonText: {
-        fontSize: 16,
+    actionTitle: {
+        fontSize: 18,
         fontWeight: '600',
         color: 'white',
+        marginBottom: 2,
     },
-    regenerateButton: {
+    actionSubtitle: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.8)',
+    },
+    actionTitleSecondary: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.text,
+        marginBottom: 2,
+    },
+    actionSubtitleSecondary: {
+        fontSize: 14,
+        color: colors.textSecondary,
+    },
+
+    // Help Section
+    helpSection: {
+        marginTop: 8,
+        width: '100%',
+    },
+    helpTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.text,
+        marginBottom: 12,
+        paddingHorizontal: 4,
+    },
+    helpCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 16,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    helpItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        borderRadius: radius.lg,
-        backgroundColor: 'rgba(255, 107, 107, 0.1)',
-        gap: spacing.sm,
+        gap: 12,
     },
-    regenerateText: {
-        color: '#ff6b6b',
-        fontWeight: '600',
-        fontSize: 16,
+    helpIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    helpText: {
+        flex: 1,
+        fontSize: 14,
+        color: colors.textSecondary,
+        lineHeight: 20,
     },
 });
 
