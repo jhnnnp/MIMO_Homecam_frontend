@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "MIMO Camera",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jhnnnnm.frontend"
+      "bundleIdentifier": "com.jhnnnnm.frontend",
+      "infoPlist": {
+        "UIBackgroundModes": [],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      },
+      "entitlements": {}
     },
     "android": {
       "adaptiveIcon": {

@@ -1,6 +1,8 @@
 import { simpleNetworkDiscovery } from '@/features/connection/services/simpleNetworkDiscovery';
 import { logger } from '@/shared/utils/logger';
 import { networkUtils } from '@/shared/utils/networkUtils';
+import { Platform, NativeModules } from 'react-native';
+import Constants from 'expo-constants';
 
 interface AppConfig {
     apiBaseUrl: string;
@@ -74,6 +76,51 @@ class ConfigService {
     }
 
     /**
+     * 개발 환경에서 번들(메트로/Expo) 호스트 IP 추출
+     */
+    private getPackagerHost(): string | null {
+        try {
+            // Expo 환경 우선
+            const expoHostUri: string | undefined = (Constants as any)?.expoConfig?.hostUri || (Constants as any)?.manifest?.debuggerHost;
+            if (expoHostUri) {
+                const host = expoHostUri.split(':')[0];
+                if (host && /\d+\.\d+\.\d+\.\d+/.test(host)) {
+                    return host;
+                }
+            }
+        } catch { /* ignore */ }
+
+        try {
+            // 순수 RN 환경
+            const scriptURL: string | undefined = (NativeModules as any)?.SourceCode?.scriptURL;
+            if (scriptURL) {
+                const url = new URL(scriptURL);
+                const host = url.hostname;
+                if (host && /\d+\.\d+\.\d+\.\d+/.test(host)) {
+                    return host;
+                }
+            }
+        } catch { /* ignore */ }
+
+        return null;
+    }
+
+    /**
+     * 특정 호스트에서 백엔드 헬스 체크 시도
+     */
+    private async verifyBackendAtHost(host: string): Promise<boolean> {
+        try {
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), 2000);
+            const res = await fetch(`http://${host}:${this.config.serverPort}/api/health`, { signal: controller.signal });
+            clearTimeout(t);
+            return !!res && res.ok;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * 가능한 IP 주소들 생성
      */
     private async generatePossibleIPs(): Promise<string[]> {
@@ -94,9 +141,11 @@ class ConfigService {
         logger.info('🔍 백엔드 서버 자동 검색 시작...');
 
         const possibleIPs = await this.generatePossibleIPs();
-        const batchSize = 20; // 동시에 10개씩 테스트
+        const batchSize = 25;
 
-        for (let i = 0; i < Math.min(possibleIPs.length, 100); i += batchSize) {
+        // 첫 번째 네트워크 범위(현재 네트워크)에서 1~254 전체를 우선 검사
+        const maxScan = Math.min(possibleIPs.length, 254);
+        for (let i = 0; i < maxScan; i += batchSize) {
             const batch = possibleIPs.slice(i, i + batchSize);
 
             const promises = batch.map(async (ip) => {
@@ -146,9 +195,34 @@ class ConfigService {
 
             let discoveredIP: string | null = null;
 
+            // 0) EXPO_PUBLIC_* 환경변수 우선 반영
+            try {
+                const envApi = (process as any).env?.EXPO_PUBLIC_API_URL;
+                const envWs = (process as any).env?.EXPO_PUBLIC_WS_URL;
+                if (envApi) {
+                    this.config.apiBaseUrl = envApi;
+                }
+                if (envWs) {
+                    this.config.wsBaseUrl = envWs;
+                }
+            } catch { /* ignore */ }
+
             if (this.config.autoDiscovery) {
                 logger.info('🔍 자동 서버 검색 활성화됨');
-                discoveredIP = await this.findBackendServer();
+                // 1) 개발 환경에서 번들 호스트 우선 사용 (실기기에서 localhost 이슈 방지)
+                const packagerHost = this.getPackagerHost();
+                if (packagerHost) {
+                    logger.info(`🧭 번들 호스트 감지: ${packagerHost}`);
+                    const ok = await this.verifyBackendAtHost(packagerHost);
+                    if (ok) {
+                        discoveredIP = packagerHost;
+                    }
+                }
+
+                // 2) 실패 시 네트워크 스캔
+                if (!discoveredIP) {
+                    discoveredIP = await this.findBackendServer();
+                }
             }
 
             // 자동 검색이 실패했더라도 기본 네트워크 범위에서 재시도하지 않고 기존 설정 유지
@@ -157,6 +231,13 @@ class ConfigService {
                 logger.info(`✅ 서버 자동 발견: ${discoveredIP}`);
             } else {
                 logger.warn('⚠️ 자동 서버 발견 실패, 기본 설정 사용');
+                // 실기기에서 localhost 기본값은 실패하므로, 가능한 경우 번들 호스트를 최후의 수단으로 사용
+                const fallbackHost = this.getPackagerHost();
+                if (fallbackHost) {
+                    this.config.apiBaseUrl = `http://${fallbackHost}:${this.config.serverPort}/api`;
+                    this.config.wsBaseUrl = `ws://${fallbackHost}:${this.config.serverPort}`;
+                    logger.warn(`⚠️ 기본값 대체: ${this.config.apiBaseUrl}`);
+                }
             }
 
             this.isInitialized = true;

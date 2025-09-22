@@ -65,7 +65,8 @@ function updateEnvFile(ip) {
     // IP 주소 업데이트
     const updatedContent = envContent
         .replace(/EXPO_PUBLIC_API_URL=http:\/\/[^\/]+:4001\/api/g, `EXPO_PUBLIC_API_URL=http://${ip}:4001/api`)
-        .replace(/EXPO_PUBLIC_WS_URL=ws:\/\/[^\/]+:8080/g, `EXPO_PUBLIC_WS_URL=ws://${ip}:8080`);
+        .replace(/EXPO_PUBLIC_WS_URL=ws:\/\/[^\/]+:4001/g, `EXPO_PUBLIC_WS_URL=ws://${ip}:4001`)
+        .replace(/EXPO_PUBLIC_WS_URL=ws:\/\/[^\n]+/g, `EXPO_PUBLIC_WS_URL=ws://${ip}:4001`);
 
     // 파일 쓰기
     fs.writeFileSync(envPath, updatedContent);
@@ -73,7 +74,7 @@ function updateEnvFile(ip) {
     console.log('✅ 환경 변수 파일 업데이트 완료');
     console.log('🌐 감지된 IP 주소:', ip);
     console.log('🔗 API URL:', `http://${ip}:4001/api`);
-    console.log('🔌 WebSocket URL:', `ws://${ip}:8080`);
+    console.log('🔌 WebSocket URL:', `ws://${ip}:4001`);
 }
 
 /**
