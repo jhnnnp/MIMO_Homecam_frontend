@@ -23,6 +23,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import SettingsService from '@/shared/services/SettingsService';
 
 // Design System
 import { spacing, radius } from '@/design/tokens';
@@ -97,8 +98,17 @@ const CameraSettingsModal = memo<CameraSettingsModalProps>(({
 
         setIsLoading(true);
         try {
-            // TODO: API 호출로 설정 저장
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Plan A: 전역 사용자 설정으로 저장
+            // 해상도 -> recording_quality, 기타 토글은 custom 또는 core에 매핑
+            await SettingsService.updateCoreSettings({
+                recording_quality: settings.resolution === '480p' ? '720p' : settings.resolution,
+                auto_recording: settings.autoRecording,
+                notification_enabled: settings.notifications,
+            });
+
+            // 나머지(야간모드, 소음감지 등)는 커스텀으로 저장
+            await SettingsService.updateCustomSetting('night_vision', { value: settings.nightVision, dataType: 'boolean' });
+            await SettingsService.updateCustomSetting('sound_detection', { value: settings.soundDetection, dataType: 'boolean' });
 
             onSave(settings);
             Alert.alert('설정 저장 완료', '홈캠 설정이 성공적으로 저장되었습니다.');

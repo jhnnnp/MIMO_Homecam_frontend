@@ -46,11 +46,16 @@ const MAX_SWIPE_DISTANCE = -120;
 // Types
 interface Camera {
     id: number;
+    owner_id: number;
     name: string;
     device_id: string;
     location: string;
     status: 'online' | 'offline' | 'error';
     last_seen: string;
+    permission_level?: 'viewer' | 'controller' | 'admin';
+    access_type?: 'owner' | 'shared';
+    granted_at?: string;
+    expires_at?: string;
     created_at: string;
 }
 
@@ -181,50 +186,77 @@ const SwipeableCameraCard = memo<SwipeableCameraCardProps>(({
     }, [camera.id]);
 
     const handleDelete = useCallback(async () => {
-        try {
-            // 삭제 애니메이션 - 더 부드럽고 자연스러운 효과
-            Animated.parallel([
-                Animated.timing(opacity, {
-                    toValue: 0,
-                    duration: 350,
-                    useNativeDriver: false,
-                }),
-                Animated.spring(translateX, {
-                    toValue: -SCREEN_WIDTH,
-                    useNativeDriver: false,
-                    tension: 80,
-                    friction: 8,
-                })
-            ]).start();
+        // 삭제 확인 다이얼로그 먼저 표시
+        Alert.alert(
+            '홈캠 삭제',
+            `'${camera.name}' 홈캠을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`,
+            [
+                {
+                    text: '취소',
+                    style: 'cancel',
+                    onPress: () => {
+                        // 취소 시 스와이프 상태 복구
+                        Animated.spring(translateX, {
+                            toValue: 0,
+                            useNativeDriver: false,
+                            tension: 120,
+                            friction: 9,
+                        }).start();
+                        logger.info('[SwipeableCameraCard] Delete cancelled by user');
+                    },
+                },
+                {
+                    text: '삭제',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            // 삭제 확인 후 애니메이션 실행
+                            Animated.parallel([
+                                Animated.timing(opacity, {
+                                    toValue: 0,
+                                    duration: 350,
+                                    useNativeDriver: false,
+                                }),
+                                Animated.spring(translateX, {
+                                    toValue: -SCREEN_WIDTH,
+                                    useNativeDriver: false,
+                                    tension: 80,
+                                    friction: 8,
+                                })
+                            ]).start();
 
-            // API 호출 및 삭제 처리
-            await onDelete(camera.id);
+                            // API 호출 및 삭제 처리
+                            await onDelete(camera.id);
 
-            logger.info('[SwipeableCameraCard] Camera deleted successfully:', { cameraId: camera.id });
-        } catch (error) {
-            console.error('[SwipeableCameraCard] Failed to delete camera:', error);
+                            logger.info('[SwipeableCameraCard] Camera deleted successfully:', { cameraId: camera.id });
+                        } catch (error) {
+                            console.error('[SwipeableCameraCard] Failed to delete camera:', error);
 
-            // 애니메이션 복구 - 에러 시 원래 상태로 부드럽게 복구
-            Animated.parallel([
-                Animated.timing(opacity, {
-                    toValue: 1,
-                    duration: 250,
-                    useNativeDriver: false,
-                }),
-                Animated.spring(translateX, {
-                    toValue: 0,
-                    useNativeDriver: false,
-                    tension: 120,
-                    friction: 9,
-                })
-            ]).start();
+                            // 애니메이션 복구 - 에러 시 원래 상태로 부드럽게 복구
+                            Animated.parallel([
+                                Animated.timing(opacity, {
+                                    toValue: 1,
+                                    duration: 250,
+                                    useNativeDriver: false,
+                                }),
+                                Animated.spring(translateX, {
+                                    toValue: 0,
+                                    useNativeDriver: false,
+                                    tension: 120,
+                                    friction: 9,
+                                })
+                            ]).start();
 
-            Alert.alert(
-                '삭제 실패',
-                '홈캠을 삭제하는 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.'
-            );
-        }
-    }, [camera.id, onDelete, opacity, translateX]);
+                            Alert.alert(
+                                '삭제 실패',
+                                '홈캠을 삭제하는 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.'
+                            );
+                        }
+                    },
+                },
+            ]
+        );
+    }, [camera.id, camera.name, onDelete, opacity, translateX]);
 
     return (
         <Animated.View style={[styles.swipeContainer, { opacity }]}>
@@ -310,24 +342,54 @@ const SwipeableCameraCard = memo<SwipeableCameraCardProps>(({
                                     <Text style={styles.cameraName} numberOfLines={1}>
                                         {camera.name}
                                     </Text>
-                                    <View style={[styles.statusBadge, {
-                                        backgroundColor: camera.status === 'online' ?
-                                            `${colors.success}15` : `${colors.error}15`
-                                    }]}>
-                                        <View style={[styles.statusDot, {
-                                            backgroundColor: camera.status === 'online' ? colors.success : colors.error
-                                        }]} />
-                                        <Text style={[styles.statusText, {
-                                            color: camera.status === 'online' ? colors.success : colors.error
+                                    <View style={styles.badgeContainer}>
+                                        {/* 권한 배지 */}
+                                        {camera.access_type && (
+                                            <View style={[styles.permissionBadge, {
+                                                backgroundColor: camera.access_type === 'owner' ?
+                                                    `${colors.primary}15` : `${colors.success}15`
+                                            }]}>
+                                                <Ionicons
+                                                    name={camera.access_type === 'owner' ? 'crown' : 'people'}
+                                                    size={12}
+                                                    color={camera.access_type === 'owner' ? colors.primary : colors.success}
+                                                />
+                                                <Text style={[styles.permissionText, {
+                                                    color: camera.access_type === 'owner' ? colors.primary : colors.success
+                                                }]}>
+                                                    {camera.access_type === 'owner' ? '소유' : '공유'}
+                                                </Text>
+                                            </View>
+                                        )}
+
+                                        {/* 상태 배지 */}
+                                        <View style={[styles.statusBadge, {
+                                            backgroundColor: camera.status === 'online' ?
+                                                `${colors.success}15` : `${colors.error}15`
                                         }]}>
-                                            {camera.status === 'online' ? '온라인' : '오프라인'}
-                                        </Text>
+                                            <View style={[styles.statusDot, {
+                                                backgroundColor: camera.status === 'online' ? colors.success : colors.error
+                                            }]} />
+                                            <Text style={[styles.statusText, {
+                                                color: camera.status === 'online' ? colors.success : colors.error
+                                            }]}>
+                                                {camera.status === 'online' ? '온라인' : '오프라인'}
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
 
-                                <Text style={styles.cameraLocation} numberOfLines={1}>
-                                    📍 {camera.location}
-                                </Text>
+                                <View style={styles.cameraMetaRow}>
+                                    <Text style={styles.cameraLocation} numberOfLines={1}>
+                                        📍 {camera.location}
+                                    </Text>
+                                    {camera.permission_level && camera.access_type === 'shared' && (
+                                        <Text style={styles.permissionLevel} numberOfLines={1}>
+                                            권한: {camera.permission_level === 'viewer' ? '조회만' :
+                                                camera.permission_level === 'controller' ? '제어가능' : '관리자'}
+                                        </Text>
+                                    )}
+                                </View>
                             </View>
 
                             {/* 액션 버튼들 */}
@@ -568,6 +630,24 @@ const styles = StyleSheet.create({
         flex: 1,
         marginRight: spacing.sm,
     },
+    badgeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+    },
+    permissionBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 10,
+        gap: 3,
+    },
+    permissionText: {
+        fontSize: 10,
+        fontWeight: '600',
+        letterSpacing: 0.2,
+    },
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -588,10 +668,22 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: 0.3,
     },
+    cameraMetaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
     cameraLocation: {
         fontSize: 14,
         color: colors.textSecondary,
         fontWeight: '500',
+        flex: 1,
+    },
+    permissionLevel: {
+        fontSize: 12,
+        color: colors.textSecondary,
+        fontWeight: '500',
+        fontStyle: 'italic',
     },
 
     // Action Buttons

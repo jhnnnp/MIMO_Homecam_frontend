@@ -12,6 +12,19 @@
  */
 
 import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
+
+// 홈캠 목록과 일치하는 iOS 스타일 색상 팔레트
+const SCREEN_COLORS = {
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
+} as const;
 import {
     View,
     Text,
@@ -35,8 +48,7 @@ import { WebRTCVideoPlayer } from '@/shared/components/media/WebRTCVideoPlayer';
 import { webrtcService, WebRTCStream } from '@/shared/services/core/webrtcService';
 import { signalingService } from '@/shared/services/core/signalingService';
 
-// Design System
-import { spacing, radius } from '@/design/tokens';
+// Design tokens 제거 - 하드코딩된 값 사용
 
 // Navigation Types
 import { RootStackParamList } from '@/app/navigation/AppNavigator';
@@ -177,19 +189,23 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
     // 컨트롤 자동 숨김
     useEffect(() => {
+        if (!showControls) return;
+
         // 4초 후 컨트롤 부드럽게 숨기기
         const timer = setTimeout(() => {
+            // 상태를 먼저 업데이트
+            setShowControls(false);
+
+            // 그 다음 애니메이션 실행
             Animated.timing(controlsOpacity, {
                 toValue: 0,
                 duration: 300,
                 useNativeDriver: true,
-            }).start(() => {
-            setShowControls(false);
-            });
+            }).start();
         }, 4000);
 
         return () => clearTimeout(timer);
-    }, [controlsOpacity]);
+    }, [showControls, controlsOpacity]);
 
     // 연결 상태 업데이트
     useEffect(() => {
@@ -299,16 +315,16 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
     // 연결 강도에 따른 색상 결정
     const getConnectionColor = () => {
-        if (connectionStrength >= 80) return colors.success;
-        if (connectionStrength >= 60) return colors.warning;
-        return colors.error;
+        if (connectionStrength >= 80) return SCREEN_COLORS.success;
+        if (connectionStrength >= 60) return SCREEN_COLORS.warning;
+        return SCREEN_COLORS.error;
     };
 
     return (
         <View style={styles.container}>
             <StatusBar
                 barStyle="light-content"
-                backgroundColor={colors.background}
+                backgroundColor={SCREEN_COLORS.background}
                 hidden={isFullscreen}
             />
 
@@ -337,7 +353,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                         >
                             {connectionStatus === 'connecting' && (
                                 <>
-                                    <Ionicons name="videocam" size={80} color={colors.text} />
+                                    <Ionicons name="videocam" size={80} color={SCREEN_COLORS.text} />
                                     <Text style={styles.fallbackVideoText}>연결 중...</Text>
                                     <Text style={styles.fallbackVideoSubtext}>{cameraName}</Text>
                                 </>
@@ -345,7 +361,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
                             {connectionStatus === 'failed' && (
                                 <>
-                                    <Ionicons name="warning" size={80} color={colors.error} />
+                                    <Ionicons name="warning" size={80} color={SCREEN_COLORS.error} />
                                     <Text style={styles.fallbackVideoText}>연결 실패</Text>
                                     <Text style={styles.fallbackVideoSubtext}>네트워크를 확인해주세요</Text>
                                 </>
@@ -353,7 +369,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
                             {connectionStatus === 'disconnected' && (
                                 <>
-                                    <Ionicons name="wifi" size={80} color={colors.warning} />
+                                    <Ionicons name="wifi" size={80} color={SCREEN_COLORS.warning} />
                                     <Text style={styles.fallbackVideoText}>연결 끊어짐</Text>
                                     <Text style={styles.fallbackVideoSubtext}>재연결 시도 중...</Text>
                                 </>
@@ -361,18 +377,18 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
 
                             {/* 품질 및 상태 정보 */}
                             <View style={styles.videoInfo}>
-                                <View style={[styles.qualityBadge, { backgroundColor: colors.primary }]}>
+                                <View style={[styles.qualityBadge, { backgroundColor: SCREEN_COLORS.primary }]}>
                                     <Text style={styles.qualityText}>{streamQuality}</Text>
                                 </View>
                                 {connectionStatus === 'connected' && (
-                                    <View style={[styles.liveIndicator, { backgroundColor: colors.success }]}>
+                                    <View style={[styles.liveIndicator, { backgroundColor: SCREEN_COLORS.success }]}>
                                         <View style={styles.liveDot} />
                                         <Text style={styles.liveText}>LIVE</Text>
                                     </View>
                                 )}
                             </View>
                         </LinearGradient>
-                </View>
+                    </View>
                 )}
 
                 {/* 상단 상태 바 */}
@@ -395,12 +411,12 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                             </Text>
                         </View>
 
-                            {isAdmin && (
-                                <View style={styles.adminBadge}>
-                                    <Text style={styles.adminBadgeText}>관리자</Text>
-                                </View>
-                            )}
-                        </View>
+                        {isAdmin && (
+                            <View style={styles.adminBadge}>
+                                <Text style={styles.adminBadgeText}>관리자</Text>
+                            </View>
+                        )}
+                    </View>
                 </Animated.View>
 
                 {/* 녹화 상태 표시 */}
@@ -423,37 +439,37 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                         ]}
                     >
                         <SafeAreaView>
-                        <View style={styles.topControlsContent}>
-                            <TouchableOpacity
-                                style={styles.controlButton}
-                                onPress={handleDisconnect}
+                            <View style={styles.topControlsContent}>
+                                <TouchableOpacity
+                                    style={styles.controlButton}
+                                    onPress={handleDisconnect}
                                     accessibilityLabel="연결 종료"
                                     accessibilityHint="홈캠 연결을 종료합니다"
-                            >
-                                <Ionicons name="close" size={24} color={colors.text} />
-                            </TouchableOpacity>
+                                >
+                                    <Ionicons name="close" size={24} color={SCREEN_COLORS.text} />
+                                </TouchableOpacity>
 
-                            <View style={styles.titleContainer}>
-                                <Text style={styles.streamTitle}>{cameraName}</Text>
-                                <Text style={styles.streamSubtitle}>
-                                    {isAdmin ? '관리자 모드' : '라이브 스트림'}
-                                </Text>
-                            </View>
+                                <View style={styles.titleContainer}>
+                                    <Text style={styles.streamTitle}>{cameraName}</Text>
+                                    <Text style={styles.streamSubtitle}>
+                                        {isAdmin ? '관리자 모드' : '라이브 스트림'}
+                                    </Text>
+                                </View>
 
-                            <TouchableOpacity
-                                style={styles.controlButton}
-                                onPress={handleFullscreen}
+                                <TouchableOpacity
+                                    style={styles.controlButton}
+                                    onPress={handleFullscreen}
                                     accessibilityLabel="전체화면 토글"
                                     accessibilityHint="전체화면 모드를 토글합니다"
-                            >
-                                <Ionicons
-                                    name={isFullscreen ? "contract" : "expand"}
-                                    size={24}
-                                    color={colors.text}
-                                />
-                            </TouchableOpacity>
-                        </View>
-                    </SafeAreaView>
+                                >
+                                    <Ionicons
+                                        name={isFullscreen ? "contract" : "expand"}
+                                        size={24}
+                                        color={SCREEN_COLORS.text}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        </SafeAreaView>
                     </Animated.View>
 
                     {/* 하단 컨트롤 */}
@@ -464,25 +480,25 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                         ]}
                     >
                         <SafeAreaView>
-                        <View style={styles.bottomControlsContent}>
+                            <View style={styles.bottomControlsContent}>
                                 {/* 품질 버튼 */}
                                 <Animated.View style={{ transform: [{ scale: qualityButtonScale }] }}>
-                            <TouchableOpacity
-                                style={styles.qualityButton}
-                                onPress={handleQualityChange}
+                                    <TouchableOpacity
+                                        style={styles.qualityButton}
+                                        onPress={handleQualityChange}
                                         accessibilityLabel={`현재 품질: ${streamQuality}`}
                                         accessibilityHint="스트림 품질을 변경합니다"
-                            >
-                                        <Ionicons name="settings" size={16} color={colors.text} />
-                                <Text style={styles.qualityButtonText}>{streamQuality}</Text>
-                            </TouchableOpacity>
+                                    >
+                                        <Ionicons name="settings" size={16} color={SCREEN_COLORS.text} />
+                                        <Text style={styles.qualityButtonText}>{streamQuality}</Text>
+                                    </TouchableOpacity>
                                 </Animated.View>
 
                                 {/* 녹화 버튼 */}
                                 <TouchableOpacity
                                     style={[
                                         styles.recordButton,
-                                        { backgroundColor: isRecording ? colors.error : colors.glass }
+                                        { backgroundColor: isRecording ? SCREEN_COLORS.error : SCREEN_COLORS.glass }
                                     ]}
                                     onPress={handleRecording}
                                     accessibilityLabel={isRecording ? "녹화 중지" : "녹화 시작"}
@@ -491,7 +507,7 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                                     <Ionicons
                                         name={isRecording ? "stop" : "radio-button-on"}
                                         size={20}
-                                        color={colors.text}
+                                        color={SCREEN_COLORS.text}
                                     />
                                     <Text style={styles.recordButtonText}>
                                         {isRecording ? '중지' : '녹화'}
@@ -505,13 +521,13 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
                                         onPress={() => navigation.navigate('Settings')}
                                         accessibilityLabel="카메라 설정"
                                         accessibilityHint="카메라 설정 화면으로 이동합니다"
-                                >
-                                    <Ionicons name="settings" size={20} color={colors.text} />
-                                    <Text style={styles.settingsButtonText}>설정</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    </SafeAreaView>
+                                    >
+                                        <Ionicons name="settings" size={20} color={SCREEN_COLORS.text} />
+                                        <Text style={styles.settingsButtonText}>설정</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </SafeAreaView>
                     </Animated.View>
                 </>
             )}
@@ -527,7 +543,7 @@ export default ViewerLiveStreamScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: SCREEN_COLORS.background,
     },
 
     // 비디오 영역
@@ -553,33 +569,33 @@ const styles = StyleSheet.create({
         width: '100%',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
+        paddingHorizontal: 24,
     },
     fallbackVideoText: {
         fontSize: 24,
         fontWeight: '700',
-        color: colors.text,
-        marginTop: spacing.xl,
+        color: SCREEN_COLORS.text,
+        marginTop: 24,
         textAlign: 'center',
     },
     fallbackVideoSubtext: {
         fontSize: 18,
-        color: colors.textSecondary,
-        marginTop: spacing.md,
+        color: SCREEN_COLORS.textSecondary,
+        marginTop: 16,
         textAlign: 'center',
         fontWeight: '500',
     },
     videoInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: spacing.lg,
-        gap: spacing.md,
+        marginTop: 20,
+        gap: 16,
     },
     qualityBadge: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.lg,
-        shadowColor: colors.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 16,
+        shadowColor: SCREEN_COLORS.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -587,27 +603,27 @@ const styles = StyleSheet.create({
     },
     qualityText: {
         fontSize: 14,
-        color: colors.surface,
+        color: SCREEN_COLORS.surface,
         fontWeight: '700',
         letterSpacing: 0.5,
     },
     liveIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.lg,
-        gap: spacing.xs,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 16,
+        gap: 8,
     },
     liveDot: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: colors.surface,
+        backgroundColor: SCREEN_COLORS.surface,
     },
     liveText: {
         fontSize: 12,
-        color: colors.surface,
+        color: SCREEN_COLORS.surface,
         fontWeight: '700',
         letterSpacing: 1,
     },
@@ -615,24 +631,24 @@ const styles = StyleSheet.create({
     // 상단 상태 바
     topStatusBar: {
         position: 'absolute',
-        top: spacing.lg,
-        left: spacing.lg,
-        right: spacing.lg,
+        top: 20,
+        left: 20,
+        right: 20,
         zIndex: 5,
     },
     statusContent: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: colors.overlay,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.lg,
+        backgroundColor: SCREEN_COLORS.overlay,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 16,
     },
     connectionInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.sm,
+        gap: 12,
     },
     statusDot: {
         width: 10,
@@ -645,28 +661,28 @@ const styles = StyleSheet.create({
     },
     statusText: {
         fontSize: 14,
-        color: colors.text,
+        color: SCREEN_COLORS.text,
         fontWeight: '600',
     },
     signalText: {
         fontSize: 12,
-        color: colors.textSecondary,
+        color: SCREEN_COLORS.textSecondary,
         fontWeight: '500',
-        marginLeft: spacing.xs,
+        marginLeft: 8,
     },
     adminBadge: {
-        backgroundColor: colors.warning,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        borderRadius: radius.md,
-        shadowColor: colors.warning,
+        backgroundColor: SCREEN_COLORS.warning,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 12,
+        shadowColor: SCREEN_COLORS.warning,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.3,
         shadowRadius: 2,
     },
     adminBadgeText: {
         fontSize: 11,
-        color: colors.background,
+        color: SCREEN_COLORS.background,
         fontWeight: '700',
         letterSpacing: 0.5,
     },
@@ -674,16 +690,16 @@ const styles = StyleSheet.create({
     // 녹화 표시기
     recordingIndicator: {
         position: 'absolute',
-        top: spacing.lg,
-        right: spacing.lg,
+        top: 20,
+        right: 20,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.error,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.lg,
-        gap: spacing.xs,
-        shadowColor: colors.error,
+        backgroundColor: SCREEN_COLORS.error,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 16,
+        gap: 8,
+        shadowColor: SCREEN_COLORS.error,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.4,
         shadowRadius: 4,
@@ -692,11 +708,11 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: colors.surface,
+        backgroundColor: SCREEN_COLORS.surface,
     },
     recordingText: {
         fontSize: 12,
-        color: colors.surface,
+        color: SCREEN_COLORS.surface,
         fontWeight: '700',
         letterSpacing: 1,
     },
@@ -713,15 +729,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        backgroundColor: colors.overlay,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        backgroundColor: SCREEN_COLORS.overlay,
     },
     controlButton: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: colors.glass,
+        backgroundColor: SCREEN_COLORS.glass,
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#000',
@@ -733,19 +749,19 @@ const styles = StyleSheet.create({
     titleContainer: {
         flex: 1,
         alignItems: 'center',
-        marginHorizontal: spacing.lg,
+        marginHorizontal: 20,
     },
     streamTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: colors.text,
+        color: SCREEN_COLORS.text,
         textAlign: 'center',
     },
     streamSubtitle: {
         fontSize: 14,
-        color: colors.textSecondary,
+        color: SCREEN_COLORS.textSecondary,
         textAlign: 'center',
-        marginTop: spacing.xs,
+        marginTop: 8,
         fontWeight: '500',
     },
 
@@ -761,19 +777,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.lg,
-        backgroundColor: colors.overlay,
-        gap: spacing.lg,
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+        backgroundColor: SCREEN_COLORS.overlay,
+        gap: 20,
     },
     qualityButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.glass,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.md,
-        borderRadius: radius.lg,
-        gap: spacing.xs,
+        backgroundColor: SCREEN_COLORS.glass,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        borderRadius: 16,
+        gap: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
@@ -782,16 +798,16 @@ const styles = StyleSheet.create({
     },
     qualityButtonText: {
         fontSize: 14,
-        color: colors.text,
+        color: SCREEN_COLORS.text,
         fontWeight: '700',
     },
     recordButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.md,
-        borderRadius: radius.lg,
-        gap: spacing.xs,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        borderRadius: 16,
+        gap: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
@@ -800,17 +816,17 @@ const styles = StyleSheet.create({
     },
     recordButtonText: {
         fontSize: 14,
-        color: colors.text,
+        color: SCREEN_COLORS.text,
         fontWeight: '600',
     },
     settingsButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.glass,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.md,
-        borderRadius: radius.lg,
-        gap: spacing.xs,
+        backgroundColor: SCREEN_COLORS.glass,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        borderRadius: 16,
+        gap: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
@@ -819,7 +835,7 @@ const styles = StyleSheet.create({
     },
     settingsButtonText: {
         fontSize: 14,
-        color: colors.text,
+        color: SCREEN_COLORS.text,
         fontWeight: '600',
     },
 });

@@ -21,6 +21,7 @@ interface UseCameraListReturn {
     loadCameras: () => Promise<void>;
     refreshCameras: () => Promise<void>;
     deleteCameraById: (cameraId: number) => Promise<void>;
+    deleteCameraDirectly: (cameraId: number) => Promise<void>;
     connectToCameraById: (cameraId: number) => Promise<void>;
 }
 
@@ -144,6 +145,26 @@ export const useCameraList = (): UseCameraListReturn => {
     }, [cameras]);
 
     /**
+     * 카메라 직접 삭제 (확인 다이얼로그 없음)
+     */
+    const deleteCameraDirectly = useCallback(async (cameraId: number) => {
+        try {
+            logger.info(`[useCameraList] Deleting camera directly ${cameraId}...`);
+
+            await deleteCamera(cameraId);
+
+            // 로컬 상태에서 즉시 제거
+            setCameras(prev => prev.filter(c => c.id !== cameraId));
+
+            logger.info(`[useCameraList] Camera ${cameraId} deleted directly successfully`);
+
+        } catch (err) {
+            logger.error(`[useCameraList] Failed to delete camera directly ${cameraId}:`, err);
+            throw err; // 에러를 상위로 전파하여 SwipeableCameraCard에서 처리
+        }
+    }, []);
+
+    /**
      * 카메라 연결
      */
     const connectToCameraById = useCallback(async (cameraId: number) => {
@@ -172,6 +193,7 @@ export const useCameraList = (): UseCameraListReturn => {
         loadCameras,
         refreshCameras,
         deleteCameraById,
+        deleteCameraDirectly,
         connectToCameraById,
     };
 };

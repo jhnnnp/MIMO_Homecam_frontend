@@ -60,13 +60,4 @@ export const MESSAGES = {
     UNKNOWN_ERROR: '알 수 없는 오류가 발생했습니다.',
 } as const;
 
-// Mock Data (Development Only)
-export const MOCK_CAMERA = {
-    id: 999,
-    name: '개발용 홈캠',
-    device_id: 'DEV_CAMERA_001',
-    location: '개발 환경',
-    status: 'online' as const,
-    last_seen: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-} as const;
+// Mock 데이터 제거됨 - 실제 API만 사용

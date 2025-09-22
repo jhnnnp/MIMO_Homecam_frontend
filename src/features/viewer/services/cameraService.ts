@@ -10,19 +10,28 @@
 import { api } from '@/shared/services/api/api';
 import { logger } from '@/shared/utils/logger';
 
-// Types
+// Types (새로운 구조에 맞게 업데이트)
 export interface Camera {
     id: number;
+    owner_id: number;
     name: string;
     device_id: string;
     location: string;
     status: 'online' | 'offline' | 'error';
     last_seen: string;
+    permission_level?: 'viewer' | 'controller' | 'admin';
+    access_type?: 'owner' | 'shared';
+    granted_at?: string;
+    expires_at?: string;
     created_at: string;
+    updated_at: string;
 }
 
 export interface CameraListResponse {
     cameras: Camera[];
+    total: number;
+    owned: number;
+    shared: number;
 }
 
 export interface CameraDeleteResponse {
@@ -42,28 +51,39 @@ const RETRY_DELAY = 1000;
 /**
  * API 응답 검증 함수
  */
-const validateCameraResponse = (data: any): Camera[] => {
+const validateCameraResponse = (data: any): CameraListResponse => {
     if (!data || typeof data !== 'object') {
         throw new Error('Invalid API response structure');
     }
 
-    let cameras: Camera[] = [];
+    let responseData: CameraListResponse;
 
-    // 다양한 응답 구조 처리
+    // 새로운 API 응답 구조 처리
     if (data.cameras && Array.isArray(data.cameras)) {
-        cameras = data.cameras;
-    } else if (data.ok && data.data && data.data.cameras && Array.isArray(data.data.cameras)) {
-        cameras = data.data.cameras;
+        responseData = {
+            cameras: data.cameras,
+            total: data.total || data.cameras.length,
+            owned: data.owned || 0,
+            shared: data.shared || 0
+        };
+    } else if (data.ok && data.data) {
+        responseData = {
+            cameras: data.data.cameras || [],
+            total: data.data.total || 0,
+            owned: data.data.owned || 0,
+            shared: data.data.shared || 0
+        };
     } else {
         throw new Error('No cameras found in response');
     }
 
     // 각 카메라 객체 검증
-    return cameras.map(validateCameraObject);
+    responseData.cameras = responseData.cameras.map(validateCameraObject);
+    return responseData;
 };
 
 const validateCameraObject = (camera: any): Camera => {
-    const requiredFields = ['id', 'name', 'device_id', 'location', 'status'];
+    const requiredFields = ['id', 'name', 'device_id', 'status'];
 
     for (const field of requiredFields) {
         if (!camera || typeof camera[field] === 'undefined') {
@@ -73,12 +93,18 @@ const validateCameraObject = (camera: any): Camera => {
 
     return {
         id: Number(camera.id),
+        owner_id: Number(camera.owner_id || camera.userId), // 호환성 유지
         name: String(camera.name),
         device_id: String(camera.device_id),
-        location: String(camera.location),
+        location: String(camera.location || ''),
         status: camera.status as Camera['status'],
         last_seen: String(camera.last_seen || ''),
+        permission_level: camera.permission_level || 'viewer',
+        access_type: camera.access_type || 'owner',
+        granted_at: camera.granted_at,
+        expires_at: camera.expires_at,
         created_at: String(camera.created_at || ''),
+        updated_at: String(camera.updated_at || ''),
     };
 };
 
@@ -105,10 +131,10 @@ const apiCallWithRetry = async <T>(
 };
 
 /**
- * 홈캠 목록 조회
+ * 홈캠 목록 조회 (소유 + 공유받은 통합)
  */
 export const getCameras = async (): Promise<Camera[]> => {
-    const operation = 'GET_CAMERAS';
+    const operation = 'GET_ACCESSIBLE_CAMERAS';
 
     try {
         logger.info(`[CameraService] ${operation} started`);
@@ -118,32 +144,48 @@ export const getCameras = async (): Promise<Camera[]> => {
             operation
         );
 
-        const cameras = validateCameraResponse(response.data);
+        const cameraResponse = validateCameraResponse(response.data);
 
-        // 개발 환경에서만 1개로 제한
-        const limitedCameras = __DEV__ ? cameras.slice(0, 1) : cameras;
-
-        logger.info(`[CameraService] ${operation} completed: ${limitedCameras.length} cameras loaded`);
-        return limitedCameras;
+        logger.info(`[CameraService] ${operation} completed: ${cameraResponse.total} cameras (소유: ${cameraResponse.owned}, 공유: ${cameraResponse.shared})`);
+        return cameraResponse.cameras;
 
     } catch (error) {
         logger.error(`[CameraService] ${operation} failed:`, error);
 
-        // 개발 환경에서는 Mock 데이터 반환
-        if (__DEV__) {
-            logger.warn('[CameraService] Returning mock data for development');
-            return [{
-                id: 999,
-                name: '개발용 홈캠',
-                device_id: 'DEV_CAMERA_001',
-                location: '개발 환경',
-                status: 'online',
-                last_seen: new Date().toISOString(),
-                created_at: new Date().toISOString(),
-            }];
+        // 🚫 Mock 데이터 비활성화 - 항상 실제 API 사용
+        throw new Error('홈캠 목록을 불러올 수 없습니다. 네트워크 연결을 확인해주세요.');
+    }
+};
+
+/**
+ * PIN 코드로 홈캠 연결 (영구 등록 포함)
+ */
+export const connectToCameraByPin = async (pinCode: string): Promise<{
+    cameraId: string;
+    cameraName: string;
+    isRegisteredPermanently: boolean;
+    media: { viewerUrl: string };
+}> => {
+    const operation = 'CONNECT_BY_PIN';
+
+    try {
+        logger.info(`[CameraService] ${operation} started with PIN: ${pinCode}`);
+
+        const response = await apiCallWithRetry(
+            () => api.post(`/cameras/connect/pin/${pinCode}`),
+            operation
+        );
+
+        if (!response.data) {
+            throw new Error('Invalid connection response');
         }
 
-        throw new Error('홈캠 목록을 불러올 수 없습니다. 네트워크 연결을 확인해주세요.');
+        logger.info(`[CameraService] ${operation} completed: ${response.data.message}`);
+        return response.data;
+
+    } catch (error) {
+        logger.error(`[CameraService] ${operation} failed:`, error);
+        throw new Error('PIN 코드로 홈캠에 연결할 수 없습니다. PIN 코드를 확인해주세요.');
     }
 };
 

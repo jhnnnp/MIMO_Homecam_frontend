@@ -34,8 +34,7 @@ import { useCameraList } from '../hooks/useCameraList';
 // Constants
 import { CAMERA_COLORS, MESSAGES } from '../constants/cameraConstants';
 
-// Design System
-import { spacing, radius } from '@/design/tokens';
+// Design tokens 제거 - 하드코딩된 값 사용
 
 // Navigation Types
 import { RootStackParamList } from '@/app/navigation/AppNavigator';
@@ -59,6 +58,7 @@ const ViewerDashboardScreen = memo(({ navigation }: ViewerDashboardScreenProps) 
         loadCameras,
         refreshCameras,
         deleteCameraById,
+        deleteCameraDirectly,
         connectToCameraById,
     } = useCameraList();
 
@@ -82,8 +82,8 @@ const ViewerDashboardScreen = memo(({ navigation }: ViewerDashboardScreenProps) 
     }, [navigation]);
 
     const handleDeleteCamera = useCallback(async (cameraId: number) => {
-        await deleteCameraById(cameraId);
-    }, [deleteCameraById]);
+        await deleteCameraDirectly(cameraId);
+    }, [deleteCameraDirectly]);
 
     const handleConnectToCameraById = useCallback(async (cameraId: number) => {
         await connectToCameraById(cameraId);
@@ -119,7 +119,7 @@ const ViewerDashboardScreen = memo(({ navigation }: ViewerDashboardScreenProps) 
                     style={styles.addFirstCameraGradient}
                 >
                     <Ionicons name="add" size={24} color="white" />
-                    <Text style={styles.addFirstCameraText}>첫 홈캠 등록하기</Text>
+                    <Text style={styles.addFirstCameraText}>홈캠 등록하기</Text>
                 </LinearGradient>
             </TouchableOpacity>
         </View>
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        gap: spacing.lg,
+        gap: 20,
     },
     loadingText: {
         fontSize: 16,
@@ -269,15 +269,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
         backgroundColor: CAMERA_COLORS.surface,
         borderBottomWidth: 1,
         borderBottomColor: CAMERA_COLORS.border,
     },
     profileButton: {
-        padding: spacing.sm,
-        borderRadius: radius.md,
+        padding: 12,
+        borderRadius: 12,
         backgroundColor: CAMERA_COLORS.background,
     },
     headerTitle: {
@@ -286,14 +286,14 @@ const styles = StyleSheet.create({
         color: CAMERA_COLORS.text,
     },
     addButton: {
-        padding: spacing.sm,
-        borderRadius: radius.md,
+        padding: 12,
+        borderRadius: 12,
         backgroundColor: CAMERA_COLORS.background,
     },
 
     // List
     listContainer: {
-        paddingVertical: spacing.lg,
+        paddingVertical: 20,
         flexGrow: 1,
     },
 
@@ -303,33 +303,33 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
+        paddingHorizontal: 24,
     },
     emptyTitle: {
         fontSize: 20,
         fontWeight: '600',
         color: CAMERA_COLORS.text,
-        marginTop: spacing.lg,
-        marginBottom: spacing.sm,
+        marginTop: 20,
+        marginBottom: 12,
     },
     emptySubtitle: {
         fontSize: 16,
         color: CAMERA_COLORS.textSecondary,
         textAlign: 'center',
-        marginBottom: spacing.xl,
+        marginBottom: 24,
         lineHeight: 22,
     },
     addFirstCameraButton: {
-        borderRadius: radius.lg,
+        borderRadius: 16,
         overflow: 'hidden',
     },
     addFirstCameraGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.xl,
-        gap: spacing.sm,
+        paddingVertical: 20,
+        paddingHorizontal: 24,
+        gap: 12,
     },
     addFirstCameraText: {
         color: 'white',
@@ -342,10 +342,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: `${CAMERA_COLORS.primary}08`,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        marginHorizontal: spacing.lg,
-        marginBottom: spacing.lg,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        marginHorizontal: 20,
+        marginBottom: 20,
         borderRadius: 12,
         borderWidth: 1,
         borderColor: `${CAMERA_COLORS.primary}15`,
@@ -353,17 +353,17 @@ const styles = StyleSheet.create({
     hintText: {
         fontSize: 13,
         color: CAMERA_COLORS.textSecondary,
-        marginLeft: spacing.xs,
+        marginLeft: 8,
         flex: 1,
         fontWeight: '500',
     },
 
     // Recently Added Banner
     recentlyAddedBanner: {
-        marginHorizontal: spacing.lg,
-        marginTop: spacing.md,
-        marginBottom: spacing.lg,
-        borderRadius: radius.lg,
+        marginHorizontal: 20,
+        marginTop: 16,
+        marginBottom: 20,
+        borderRadius: 16,
         overflow: 'hidden',
         elevation: 4,
         shadowColor: CAMERA_COLORS.success,
@@ -374,11 +374,11 @@ const styles = StyleSheet.create({
     recentlyAddedGradient: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.lg,
+        paddingVertical: 20,
+        paddingHorizontal: 20,
     },
     recentlyAddedIcon: {
-        marginRight: spacing.md,
+        marginRight: 16,
     },
     recentlyAddedContent: {
         flex: 1,

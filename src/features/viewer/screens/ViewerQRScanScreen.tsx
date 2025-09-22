@@ -28,16 +28,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-
-// Design System
-import { colors, spacing, radius } from '@/design/tokens';
+import { connectToCameraByPin } from '@/features/viewer/services/cameraService';
+import configService, { getApiBaseUrl as _getApiBaseUrl, getWsBaseUrl as _getWsBaseUrl } from '@/app/config';
 
 // Navigation Types
 import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
-// Components
-import GradientBackground from '@/shared/components/layout/GradientBackground';
-import GlassCard from '@/shared/components/ui/GlassCard';
+// 홈캠 목록과 일치하는 iOS 스타일 색상 팔레트
+const VIEWER_COLORS = {
+    primary: '#007AFF',
+    success: '#34C759',
+    warning: '#FF9500',
+    error: '#FF3B30',
+    background: '#F2F2F7',
+    surface: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    border: '#C6C6C8',
+} as const;
 
 // Constants
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -140,8 +148,10 @@ const ViewerQRScanScreen: React.FC = () => {
                 // QR 코드 데이터를 JSON으로 파싱
                 connectionInfo = JSON.parse(qrData);
 
-                // MIMO QR 코드 형식 검증
-                if (connectionInfo.type !== 'MIMO_CAMERA') {
+                // MIMO QR 코드 형식 검증 (구버전/신버전 모두 지원)
+                const type = String(connectionInfo.type || '').toLowerCase();
+                const isMimoType = type === 'mimo_camera' || type === 'mimo_camera_connect' || type === 'mimo';
+                if (!isMimoType) {
                     throw new Error('MIMO 카메라 QR 코드가 아닙니다.');
                 }
 
@@ -164,33 +174,29 @@ const ViewerQRScanScreen: React.FC = () => {
             }
 
             // 연결 정보 검증
-            if (!connectionInfo.pinCode || connectionInfo.pinCode.length !== 6) {
+            const pinCode = connectionInfo.pinCode || connectionInfo.code || connectionInfo.pin || connectionInfo?.data?.pinCode;
+            if (!pinCode || String(pinCode).length !== 6) {
                 throw new Error('유효하지 않은 PIN 코드입니다.');
             }
 
-            // 연결 시작
+            // QR에 apiUrl/wsUrl가 포함된 경우 즉시 반영
+            try {
+                const apiUrlFromQR = connectionInfo.apiUrl || connectionInfo?.data?.apiUrl;
+                const wsUrlFromQR = connectionInfo.wsUrl || connectionInfo?.data?.wsUrl;
+                if (apiUrlFromQR && typeof apiUrlFromQR === 'string') {
+                    const url = new URL(apiUrlFromQR);
+                    await (configService as any).updateServerIP(url.hostname);
+                }
+                if (wsUrlFromQR && typeof wsUrlFromQR === 'string') {
+                    // wsBaseUrl는 updateServerIP에서 같이 맞춰짐(같은 호스트/포트)
+                }
+            } catch { /* ignore */ }
+
+            // 연결 시작 (실제 API 호출로 등록)
             setIsScanning(false);
+            const connectResult = await connectToCameraByPin(String(pinCode));
 
-
-            // TODO: 실제 홈캠 등록 로직 구현
-            // const result = await api.post('/cameras/register-with-code', { code: qrData, type: 'qr' });
-
-            // Mock 홈캠 등록 - 임시로 2초 후 성공
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // 임시 등록 성공 처리
-            const mockResult = {
-                camera: {
-                    id: Date.now(),
-                    name: connectionInfo.cameraName || `홈캠 ${connectionInfo.pinCode}`,
-                    device_id: connectionInfo.cameraId,
-                    location: '홈',
-                    status: 'online'
-                },
-                success: true
-            };
-
-            if (mockResult.success) {
+            if (connectResult) {
                 // Success feedback
                 if (Platform.OS === 'ios') {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -203,7 +209,7 @@ const ViewerQRScanScreen: React.FC = () => {
                 setTimeout(() => {
                     Alert.alert(
                         '등록 성공!',
-                        `홈캠 "${mockResult.camera.name}"이 성공적으로 등록되었습니다.\n\n지금 바로 라이브 스트리밍을 시청하시겠습니까?`,
+                        `홈캠이 성공적으로 등록되었습니다.\n\n지금 바로 라이브 스트리밍을 시청하시겠습니까?`,
                         [
                             {
                                 text: '나중에',
@@ -219,8 +225,8 @@ const ViewerQRScanScreen: React.FC = () => {
                                     // 잠시 후 라이브 스트림으로 이동
                                     setTimeout(() => {
                                         navigation.navigate('LiveStream', {
-                                            cameraId: mockResult.camera.device_id,
-                                            cameraName: mockResult.camera.name,
+                                            cameraId: connectResult.cameraId || 'unknown',
+                                            cameraName: connectResult.cameraName || '홈캠',
                                             ipAddress: '192.168.1.100',
                                             quality: '1080p'
                                         });
@@ -274,19 +280,19 @@ const ViewerQRScanScreen: React.FC = () => {
 
     // Render functions
     const renderPermissionView = () => (
-        <GradientBackground style={styles.container}>
+        <View style={styles.container}>
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                        <Ionicons name="close" size={24} color={colors.text} />
+                        <Ionicons name="close" size={24} color={VIEWER_COLORS.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>QR 코드 스캔</Text>
                     <View style={styles.placeholder} />
                 </View>
 
                 <View style={styles.permissionContainer}>
-                    <GlassCard style={styles.permissionCard}>
-                        <Ionicons name="camera-outline" size={64} color={colors.primary} />
+                    <View style={styles.permissionCard}>
+                        <Ionicons name="camera-outline" size={64} color={VIEWER_COLORS.primary} />
                         <Text style={styles.permissionTitle}>카메라 권한 필요</Text>
                         <Text style={styles.permissionText}>
                             QR 코드를 스캔하려면 카메라 권한이 필요합니다.
@@ -297,10 +303,10 @@ const ViewerQRScanScreen: React.FC = () => {
                         >
                             <Text style={styles.permissionButtonText}>권한 허용</Text>
                         </TouchableOpacity>
-                    </GlassCard>
+                    </View>
                 </View>
             </SafeAreaView>
-        </GradientBackground>
+        </View>
     );
 
     const renderScanOverlay = () => (
@@ -354,24 +360,24 @@ const ViewerQRScanScreen: React.FC = () => {
     );
 
     const renderSuccessView = () => (
-        <GradientBackground style={styles.container}>
+        <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                        <Ionicons name="close" size={24} color={colors.text} />
+                        <Ionicons name="close" size={24} color={VIEWER_COLORS.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>등록 성공</Text>
                     <View style={styles.placeholder} />
                 </View>
 
                 <View style={styles.successContainer}>
-                    <GlassCard style={styles.successCard}>
+                    <View style={styles.successCard}>
                         <Animated.View style={styles.successIcon}>
                             <Ionicons
                                 name="checkmark-circle"
                                 size={80}
-                                color={colors.success}
+                                color={VIEWER_COLORS.success}
                             />
                         </Animated.View>
                         <Text style={styles.successTitle}>등록 성공!</Text>
@@ -386,10 +392,10 @@ const ViewerQRScanScreen: React.FC = () => {
                                 {scannedData || 'QR 데이터'}
                             </Text>
                         </View>
-                    </GlassCard>
+                    </View>
                 </View>
             </SafeAreaView>
-        </GradientBackground>
+        </View>
     );
 
     const renderCameraView = () => (
@@ -448,11 +454,11 @@ const ViewerQRScanScreen: React.FC = () => {
     if (!permission) {
         // 권한 상태를 확인 중
         return (
-            <GradientBackground style={styles.container}>
+            <View style={styles.container}>
                 <View style={styles.loadingContainer}>
                     <Text style={styles.loadingText}>카메라 권한 확인 중...</Text>
                 </View>
-            </GradientBackground>
+            </View>
         );
     }
 
@@ -493,7 +499,7 @@ const styles = StyleSheet.create({
     },
     loadingText: {
         fontSize: 16,
-        color: colors.text,
+        color: VIEWER_COLORS.text,
     },
 
     // Header
@@ -501,9 +507,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: spacing.md,
-        paddingTop: spacing.sm,
-        paddingBottom: spacing.md,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 16,
     },
     closeButton: {
         width: 40,
@@ -532,32 +538,32 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: 20,
     },
     permissionCard: {
-        padding: spacing.xl,
+        padding: 24,
         alignItems: 'center',
         maxWidth: 300,
     },
     permissionTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: colors.text,
-        marginTop: spacing.md,
-        marginBottom: spacing.sm,
+        color: VIEWER_COLORS.text,
+        marginTop: 16,
+        marginBottom: 12,
     },
     permissionText: {
         fontSize: 14,
-        color: colors.textSecondary,
+        color: VIEWER_COLORS.textSecondary,
         textAlign: 'center',
-        marginBottom: spacing.lg,
+        marginBottom: 20,
         lineHeight: 20,
     },
     permissionButton: {
-        backgroundColor: colors.primary,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        borderRadius: radius.md,
+        backgroundColor: VIEWER_COLORS.primary,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderRadius: 12,
     },
     permissionButtonText: {
         fontSize: 16,
@@ -591,16 +597,16 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'flex-start',
         alignItems: 'center',
-        paddingTop: spacing.lg,
+        paddingTop: 20,
     },
     instructionText: {
         fontSize: 16,
         color: 'white',
         textAlign: 'center',
         backgroundColor: 'rgba(0,0,0,0.7)',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        borderRadius: radius.md,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderRadius: 12,
     },
 
     // Scan area
@@ -613,7 +619,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: 24,
         height: 24,
-        borderColor: colors.primary,
+        borderColor: VIEWER_COLORS.primary,
         borderWidth: 3,
     },
     cornerTopLeft: {
@@ -645,8 +651,8 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 2,
-        backgroundColor: colors.primary,
-        shadowColor: colors.primary,
+        backgroundColor: VIEWER_COLORS.primary,
+        shadowColor: VIEWER_COLORS.primary,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.8,
         shadowRadius: 4,
@@ -657,19 +663,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.lg,
+        paddingHorizontal: 20,
+        paddingBottom: 20,
     },
     controlButton: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.7)',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        borderRadius: radius.md,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderRadius: 12,
     },
     controlButtonText: {
-        marginLeft: spacing.sm,
+        marginLeft: 12,
         fontSize: 16,
         color: 'white',
         fontWeight: '500',
@@ -680,51 +686,51 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: spacing.xl,
+        padding: 24,
     },
     successCard: {
         alignItems: 'center',
-        padding: spacing.xl,
+        padding: 24,
         width: '100%',
         maxWidth: 320,
     },
     successIcon: {
-        marginBottom: spacing.xl,
+        marginBottom: 24,
     },
     successTitle: {
         fontSize: 24,
         fontWeight: '700',
-        color: colors.success,
-        marginBottom: spacing.md,
+        color: VIEWER_COLORS.success,
+        marginBottom: 16,
         textAlign: 'center',
     },
     successSubtitle: {
         fontSize: 16,
-        color: colors.textSecondary,
-        marginBottom: spacing.xl,
+        color: VIEWER_COLORS.textSecondary,
+        marginBottom: 24,
         textAlign: 'center',
         lineHeight: 22,
     },
     successQRDisplay: {
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        paddingVertical: spacing.lg,
-        paddingHorizontal: spacing.xl,
-        borderRadius: radius.lg,
+        paddingVertical: 20,
+        paddingHorizontal: 24,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: colors.success,
+        borderColor: VIEWER_COLORS.success,
         alignItems: 'center',
         width: '100%',
     },
     successQRLabel: {
         fontSize: 14,
-        color: colors.textSecondary,
-        marginBottom: spacing.sm,
+        color: VIEWER_COLORS.textSecondary,
+        marginBottom: 12,
         fontWeight: '500',
     },
     successQRData: {
         fontSize: 16,
         fontWeight: '600',
-        color: colors.success,
+        color: VIEWER_COLORS.success,
         textAlign: 'center',
     },
 });
