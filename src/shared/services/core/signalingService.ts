@@ -49,6 +49,9 @@ export type SignalingEvent =
     | 'camera_registered'
     | 'stream_started'
     | 'stream_joined'
+    | 'viewer_joined'
+    | 'viewer_left'
+    | 'viewer_count_update'
     | 'webrtc_signaling'
     | 'error';
 
@@ -67,15 +70,28 @@ class SignalingService {
     private isConnecting = false;
 
     // WebSocket 서버 URL
-    private readonly wsUrl: string;
+    private wsUrl: string;
+    private baseWsUrl: string;
 
     constructor() {
-        // 환경별 WebSocket URL 설정
-        const host = config.websocket?.host || 'localhost';
-        const port = config.websocket?.port || 8080;
-        const protocol = config.websocket?.secure ? 'wss' : 'ws';
+        // 환경별 WebSocket URL 설정 (항상 분리된 서버: 8080 우선)
+        const protocol = (config as any).getConfig?.().websocket?.secure ? 'wss' : 'ws';
+        const base = (config as any).getWsBaseUrl ? (config as any).getWsBaseUrl() : undefined;
 
-        this.wsUrl = `${protocol}://${host}:${port}`;
+        const normalizeTo8080 = (urlStr: string): string => {
+            try {
+                const u = new URL(urlStr);
+                // 분리 서버 강제 8080
+                u.port = u.port && u.port !== '8080' ? '8080' : (u.port || '8080');
+                return u.toString();
+            } catch {
+                return `${protocol}://localhost:8080`;
+            }
+        };
+
+        const initial = base ? normalizeTo8080(base) : `${protocol}://localhost:8080`;
+        this.baseWsUrl = initial;
+        this.wsUrl = initial;
 
         signalingLogger.info('시그널링 서비스 초기화됨', { url: this.wsUrl });
     }
@@ -115,7 +131,40 @@ class SignalingService {
             signalingLogger.logUserAction('WebSocket 연결 시도', { url: this.wsUrl });
 
             try {
-                this.ws = new WebSocket(this.wsUrl);
+                // 최신 URL 동기화 (실시간 환경변수/자동감지 반영)
+                const currentBase = (config as any).getWsBaseUrl ? (config as any).getWsBaseUrl() : undefined;
+                if (currentBase) {
+                    try {
+                        const u = new URL(currentBase);
+                        u.port = u.port && u.port !== '8080' ? '8080' : (u.port || '8080');
+                        this.baseWsUrl = u.toString();
+                    } catch {
+                        this.baseWsUrl = currentBase;
+                    }
+                }
+
+                // 사전 헬스체크: 실패해도 연결은 시도 (경고만)
+                try {
+                    const apiBase = (config as any).getApiBaseUrl ? (config as any).getApiBaseUrl() : undefined;
+                    if (apiBase) {
+                        const controller = new AbortController();
+                        const t = setTimeout(() => controller.abort(), 5000);
+                        const res = await fetch(`${apiBase}/health`, { signal: controller.signal });
+                        clearTimeout(t);
+                        if (!res || !res.ok) {
+                            signalingLogger.warn('헬스체크 실패, WS 연결을 계속 시도합니다');
+                        }
+                    }
+                } catch (e) {
+                    signalingLogger.warn('헬스체크 예외, WS 연결을 계속 시도합니다');
+                }
+
+                // 분리된 WebSocket 서버는 토큰 인증이 필요 없음
+                const connectUrl = this.baseWsUrl;
+                signalingLogger.info('토큰 인증 없이 WebSocket 연결', { url: connectUrl });
+
+                this.ws = new WebSocket(connectUrl);
+                this.wsUrl = connectUrl; // 로깅 일관성
 
                 this.ws.onopen = this.handleOpen.bind(this);
                 this.ws.onmessage = this.handleMessage.bind(this);
@@ -314,6 +363,18 @@ class SignalingService {
                     this.emitEvent('stream_joined', message.data);
                     break;
 
+                case 'viewer_joined':
+                    this.emitEvent('viewer_joined', message.data);
+                    break;
+
+                case 'viewer_left':
+                    this.emitEvent('viewer_left', message.data);
+                    break;
+
+                case 'viewer_count_update':
+                    this.emitEvent('viewer_count_update', message.data);
+                    break;
+
                 case 'webrtc_signaling':
                     this.emitEvent('webrtc_signaling', message.data);
                     break;
@@ -362,7 +423,9 @@ class SignalingService {
         }
 
         this.reconnectAttempts++;
-        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // 지수 백오프
+        const baseDelay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // 지수 백오프
+        const jitter = Math.floor(Math.random() * 300);
+        const delay = baseDelay + jitter;
 
         signalingLogger.info(`재연결 시도 ${this.reconnectAttempts}/${this.maxReconnectAttempts}`, { delay });
         this.setConnectionState('reconnecting');

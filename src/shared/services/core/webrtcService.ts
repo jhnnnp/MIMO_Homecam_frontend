@@ -1,15 +1,15 @@
 import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
 import { createLogger } from '@/shared/utils/logger';
-import { withErrorHandling, createNetworkError, createTimeoutError } from '@/shared/utils/errorHandler';
-import config from '@/app/config';
+import { withErrorHandling, createNetworkError } from '@/shared/utils/errorHandler';
+import { initializeConfig, forceRediscover } from '@/app/config';
 import { signalingService } from './signalingService';
 
 // WebRTC 서비스 로거
 const webrtcLogger = createLogger('WebRTCService');
 
 // WebRTC 라이브러리 import (개발 빌드에서만 사용 가능)
-let MediaStream: any, RTCPeerConnection: any, RTCSessionDescription: any, RTCIceCandidate: any;
+let MediaStream: any, RTCPeerConnection: any, RTCSessionDescription: any, RTCIceCandidate: any, mediaDevices: any;
 
 try {
     const WebRTC = require('react-native-webrtc');
@@ -17,6 +17,7 @@ try {
     RTCPeerConnection = WebRTC.RTCPeerConnection;
     RTCSessionDescription = WebRTC.RTCSessionDescription;
     RTCIceCandidate = WebRTC.RTCIceCandidate;
+    mediaDevices = WebRTC.mediaDevices;
 } catch (error) {
     webrtcLogger.warn('WebRTC library not available (Expo Go mode)');
     // Expo Go에서는 모킹 사용
@@ -35,9 +36,15 @@ try {
         async addIceCandidate() { }
         onicecandidate = null;
         onconnectionstatechange = null;
+        oniceconnectionstatechange = null;
+        onsignalingstatechange = null;
+        onnegotiationneeded = null;
         ontrack = null;
         connectionState = 'new';
+        iceConnectionState = 'new';
+        iceGatheringState = 'new';
         close() { }
+        async getStats() { return null; }
     };
     RTCSessionDescription = class MockRTCSessionDescription {
         constructor(init: any) {
@@ -47,6 +54,11 @@ try {
     RTCIceCandidate = class MockRTCIceCandidate {
         constructor(init: any) {
             Object.assign(this, init);
+        }
+    };
+    mediaDevices = {
+        async getUserMedia() {
+            return new MediaStream();
         }
     };
 }
@@ -108,9 +120,12 @@ class WebRTCService {
     private peerConnections: Map<string, WebRTCStream> = new Map();
     private localStream: any = null;
     private signalingCallback?: (message: SignalingMessage) => void;
-    private camera: Camera | null = null;
+    private camera: any | null = null;
     private isExpoGo: boolean = false;
     private eventListeners: WebRTCEventListener[] = [];
+    private signalingListener?: (event: string, data?: any) => void;
+    private iceRestartTimestamps: Map<string, number> = new Map();
+    private readonly iceRestartMinIntervalMs: number = 15000;
 
     // STUN/TURN 서버 설정
     private readonly rtcConfiguration = {
@@ -129,6 +144,29 @@ class WebRTCService {
         bundlePolicy: 'max-bundle' as const,
         rtcpMuxPolicy: 'require' as const,
     };
+
+    // 동적 STUN/TURN 구성
+    private getRtcConfiguration() {
+        const stunRaw = process.env.EXPO_PUBLIC_STUN_SERVERS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302';
+        const stunList = stunRaw.split(',').map((s: string) => s.trim()).filter(Boolean);
+        const iceServers: Array<{ urls: string | string[], username?: string, credential?: string }> = stunList.map((url: string) => ({ urls: url }));
+
+        const turnUrl = (process.env.EXPO_PUBLIC_TURN_SERVER_URL || '').trim();
+        const turnUsername = (process.env.EXPO_PUBLIC_TURN_SERVER_USERNAME || '').trim();
+        const turnCredential = (process.env.EXPO_PUBLIC_TURN_SERVER_CREDENTIAL || '').trim();
+        if (turnUrl && turnUsername && turnCredential) {
+            iceServers.push({ urls: turnUrl, username: turnUsername, credential: turnCredential });
+        }
+
+        const poolSize = parseInt(process.env.EXPO_PUBLIC_ICE_CANDIDATE_POOL_SIZE || '10', 10);
+
+        return {
+            iceServers,
+            iceCandidatePoolSize: Number.isNaN(poolSize) ? 10 : poolSize,
+            bundlePolicy: 'max-bundle' as const,
+            rtcpMuxPolicy: 'require' as const,
+        };
+    }
 
     constructor() {
         // Expo Go 환경 감지
@@ -158,6 +196,7 @@ class WebRTCService {
             }
         };
 
+        this.signalingListener = signalingListener;
         signalingService.addEventListener(signalingListener);
 
         // 시그널링 콜백 설정
@@ -188,7 +227,7 @@ class WebRTCService {
     }
 
     // 카메라 참조 설정
-    setCameraRef(camera: Camera) {
+    setCameraRef(camera: any) {
         this.camera = camera;
     }
 
@@ -209,43 +248,76 @@ class WebRTCService {
                 throw new Error('마이크 권한이 필요합니다.');
             }
 
-            if (this.isExpoGo) {
-                // Expo Go에서는 모킹된 스트림 생성
-                this.localStream = new MediaStream();
-                webrtcLogger.info('Local stream initialized (Expo Go mode)');
-                return this.localStream;
-            } else {
-                // 개발 빌드에서는 실제 카메라 스트림 생성
-                if (this.camera) {
-                    const stream = await this.camera.getStreamAsync();
-                    this.localStream = stream;
-                    webrtcLogger.info('Local stream initialized (Development build mode)');
-                    return stream;
-                } else {
-                    throw new Error('카메라 참조가 설정되지 않았습니다.');
-                }
-            }
+            // react-native-webrtc 통일 경로 사용
+            const constraints: any = {
+                video: {
+                    facingMode: 'environment',
+                    width: 1280,
+                    height: 720,
+                    frameRate: 30,
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                },
+            };
+
+            const stream = await mediaDevices.getUserMedia(constraints);
+            this.localStream = stream;
+            webrtcLogger.info(`Local stream initialized (${this.isExpoGo ? 'Expo Go mode' : 'Development build mode'})`);
+            return stream;
         }, { operation: 'initialize_local_stream' });
     }
 
     // 시그널링 서버 연결 확인
     private async ensureSignalingConnection(): Promise<void> {
-        const connectionState = signalingService.getConnectionState();
+        const state = signalingService.getConnectionState();
+        if (state === 'connected') return;
 
-        if (connectionState === 'disconnected' || connectionState === 'failed') {
-            webrtcLogger.info('시그널링 서버 연결 시도...');
-            await signalingService.connect();
+        try { await initializeConfig(); } catch { /* ignore */ }
 
-            // 연결 대기 (최대 10초)
-            const startTime = Date.now();
-            while (signalingService.getConnectionState() === 'connecting' && Date.now() - startTime < 10000) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
+        await signalingService.connect();
 
-            if (signalingService.getConnectionState() !== 'connected') {
-                throw createNetworkError('시그널링 서버 연결 실패');
-            }
+        try {
+            await this.waitForSignalingConnected(10000);
+            return;
+        } catch {
+            webrtcLogger.warn('초기 시그널링 연결 실패, 네트워크 재검색 시도');
         }
+
+        try {
+            const rediscovered = await forceRediscover();
+            if (rediscovered) {
+                await signalingService.connect();
+                await this.waitForSignalingConnected(10000);
+                return;
+            }
+        } catch { /* ignore */ }
+
+        throw createNetworkError('시그널링 서버 연결 실패');
+    }
+
+    private waitForSignalingConnected(timeoutMs: number): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const onEvent = (event: string) => {
+                if (event === 'connected') {
+                    cleanup();
+                    resolve();
+                } else if (event === 'failed' || event === 'disconnected') {
+                    cleanup();
+                    reject(new Error('signaling_failed'));
+                }
+            };
+            const cleanup = () => {
+                try { signalingService.removeEventListener(onEvent as any); } catch { /* ignore */ }
+                clearTimeout(timer);
+            };
+            const timer = setTimeout(() => {
+                cleanup();
+                reject(new Error('signaling_timeout'));
+            }, timeoutMs);
+            signalingService.addEventListener(onEvent as any);
+        });
     }
 
     // 스트림 시작 (홈캠 모드)
@@ -264,14 +336,26 @@ class WebRTCService {
             const streamId = this.generateStreamId(cameraId, viewerId);
 
             // RTCPeerConnection 생성
-            const peerConnection = new RTCPeerConnection(this.rtcConfiguration);
+            const peerConnection = new RTCPeerConnection(this.getRtcConfiguration());
 
             if (!this.isExpoGo) {
                 // 개발 빌드에서만 실제 스트림 추가
                 if (this.localStream) {
-                    this.localStream.getTracks().forEach((track: any) => {
-                        peerConnection.addTrack(track, this.localStream);
-                    });
+                    try {
+                        if (typeof (peerConnection as any).addTrack === 'function') {
+                            this.localStream.getTracks().forEach((track: any) => {
+                                (peerConnection as any).addTrack(track, this.localStream);
+                            });
+                        } else if (typeof (peerConnection as any).addStream === 'function') {
+                            // 구버전/단말 호환: addTrack 미지원 시 addStream 사용
+                            (peerConnection as any).addStream(this.localStream);
+                            webrtcLogger.warn('PeerConnection.addTrack 미지원, addStream으로 대체');
+                        } else {
+                            webrtcLogger.warn('로컬 스트림을 PeerConnection에 추가할 수 없습니다 (addTrack/addStream 미지원)');
+                        }
+                    } catch (e) {
+                        webrtcLogger.error('로컬 트랙 추가 실패', e as Error);
+                    }
                 }
             }
 
@@ -299,6 +383,9 @@ class WebRTCService {
                 if (webRTCStream) {
                     webRTCStream.isConnected = state === 'connected';
                 }
+                if (state === 'failed' || state === 'disconnected') {
+                    this.maybeRestartIce(peerConnection, streamId, cameraId, viewerId);
+                }
             };
 
             // ICE 연결 상태 변경 이벤트
@@ -306,6 +393,9 @@ class WebRTCService {
                 const state = peerConnection.iceConnectionState;
                 webrtcLogger.info('ICE connection state changed', { streamId, state });
                 this.emitEvent('ice_connection_state_changed', streamId, state);
+                if (state === 'failed' || state === 'disconnected') {
+                    this.maybeRestartIce(peerConnection, streamId, cameraId, viewerId);
+                }
             };
 
             // 시그널링 상태 변경 이벤트
@@ -315,15 +405,48 @@ class WebRTCService {
                 this.emitEvent('signaling_state_changed', streamId, state);
             };
 
-            // 원격 스트림 수신 이벤트
+            // 재협상 이벤트
+            peerConnection.onnegotiationneeded = async () => {
+                try {
+                    webrtcLogger.info('Negotiation needed', { streamId });
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    const msg: SignalingMessage = { type: 'offer', from: cameraId, to: viewerId, data: offer };
+                    this.sendSignalingMessage(msg);
+                } catch (e) {
+                    webrtcLogger.error('Renegotiation failed', e as Error, { streamId });
+                }
+            };
+
+            // ICE 후보 수집 에러
+            (peerConnection as any).onicecandidateerror = (e: any) => {
+                webrtcLogger.warn('ICE candidate error', { streamId, errorCode: e?.errorCode, errorText: e?.errorText, url: e?.url });
+            };
+
+            // ICE gathering 상태 로깅
+            peerConnection.onicegatheringstatechange = () => {
+                webrtcLogger.debug('ICE gathering state', { streamId, state: (peerConnection as any).iceGatheringState });
+            };
+
+            // 원격 스트림 수신 이벤트 (신규 ontrack + 구형 onaddstream 호환)
             peerConnection.ontrack = (event: any) => {
-                webrtcLogger.info('Remote stream received', { streamId });
+                webrtcLogger.info('Remote stream received (ontrack)', { streamId });
                 this.emitEvent('track_added', streamId, event);
 
                 const webRTCStream = this.peerConnections.get(streamId);
                 if (webRTCStream) {
-                    webRTCStream.remoteStream = event.streams[0];
-                    webRTCStream.onStreamReceived?.(event.streams[0]);
+                    webRTCStream.remoteStream = event.streams?.[0] || event.stream || null;
+                    if (webRTCStream.remoteStream) {
+                        webRTCStream.onStreamReceived?.(webRTCStream.remoteStream);
+                    }
+                }
+            };
+            (peerConnection as any).onaddstream = (event: any) => {
+                webrtcLogger.info('Remote stream received (onaddstream)', { streamId });
+                const webRTCStream = this.peerConnections.get(streamId);
+                if (webRTCStream) {
+                    webRTCStream.remoteStream = event.stream;
+                    webRTCStream.onStreamReceived?.(event.stream);
                 }
             };
 
@@ -377,7 +500,7 @@ class WebRTCService {
             const streamId = this.generateStreamId(cameraId, viewerId);
 
             // RTCPeerConnection 생성
-            const peerConnection = new RTCPeerConnection(this.rtcConfiguration);
+            const peerConnection = new RTCPeerConnection(this.getRtcConfiguration());
 
             // ICE 후보 이벤트 처리
             peerConnection.onicecandidate = (event: any) => {
@@ -403,6 +526,9 @@ class WebRTCService {
                 if (webRTCStream) {
                     webRTCStream.isConnected = state === 'connected';
                 }
+                if (state === 'failed' || state === 'disconnected') {
+                    this.maybeRestartIce(peerConnection, streamId, viewerId, cameraId);
+                }
             };
 
             // ICE 연결 상태 변경 이벤트
@@ -410,6 +536,9 @@ class WebRTCService {
                 const state = peerConnection.iceConnectionState;
                 webrtcLogger.info('ICE connection state changed', { streamId, state });
                 this.emitEvent('ice_connection_state_changed', streamId, state);
+                if (state === 'failed' || state === 'disconnected') {
+                    this.maybeRestartIce(peerConnection, streamId, viewerId, cameraId);
+                }
             };
 
             // 시그널링 상태 변경 이벤트
@@ -419,15 +548,48 @@ class WebRTCService {
                 this.emitEvent('signaling_state_changed', streamId, state);
             };
 
-            // 원격 스트림 수신 이벤트
+            // 재협상 이벤트
+            peerConnection.onnegotiationneeded = async () => {
+                try {
+                    webrtcLogger.info('Negotiation needed', { streamId });
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    const msg: SignalingMessage = { type: 'offer', from: viewerId, to: cameraId, data: offer };
+                    this.sendSignalingMessage(msg);
+                } catch (e) {
+                    webrtcLogger.error('Renegotiation failed', e as Error, { streamId });
+                }
+            };
+
+            // ICE 후보 수집 에러
+            (peerConnection as any).onicecandidateerror = (e: any) => {
+                webrtcLogger.warn('ICE candidate error', { streamId, errorCode: e?.errorCode, errorText: e?.errorText, url: e?.url });
+            };
+
+            // ICE gathering 상태 로깅
+            peerConnection.onicegatheringstatechange = () => {
+                webrtcLogger.debug('ICE gathering state', { streamId, state: (peerConnection as any).iceGatheringState });
+            };
+
+            // 원격 스트림 수신 이벤트 (신규 ontrack + 구형 onaddstream 호환)
             peerConnection.ontrack = (event: any) => {
-                webrtcLogger.info('Remote stream received', { streamId });
+                webrtcLogger.info('Remote stream received (ontrack)', { streamId });
                 this.emitEvent('track_added', streamId, event);
 
                 const webRTCStream = this.peerConnections.get(streamId);
                 if (webRTCStream) {
-                    webRTCStream.remoteStream = event.streams[0];
-                    webRTCStream.onStreamReceived?.(event.streams[0]);
+                    webRTCStream.remoteStream = event.streams?.[0] || event.stream || null;
+                    if (webRTCStream.remoteStream) {
+                        webRTCStream.onStreamReceived?.(webRTCStream.remoteStream);
+                    }
+                }
+            };
+            (peerConnection as any).onaddstream = (event: any) => {
+                webrtcLogger.info('Remote stream received (onaddstream)', { streamId });
+                const webRTCStream = this.peerConnections.get(streamId);
+                if (webRTCStream) {
+                    webRTCStream.remoteStream = event.stream;
+                    webRTCStream.onStreamReceived?.(event.stream);
                 }
             };
 
@@ -533,6 +695,14 @@ class WebRTCService {
                 this.peerConnections.delete(streamId);
 
                 this.emitEvent('stream_destroyed', streamId);
+
+                // 모든 연결 종료 시 로컬 트랙 해제
+                if (this.peerConnections.size === 0 && this.localStream) {
+                    try {
+                        this.localStream.getTracks().forEach((track: any) => track.stop());
+                    } catch { /* ignore */ }
+                    this.localStream = null;
+                }
             }
         } catch (error) {
             webrtcLogger.error('Failed to stop stream', error as Error, { streamId });
@@ -585,8 +755,11 @@ class WebRTCService {
         try {
             const webRTCStream = this.peerConnections.get(streamId);
             if (webRTCStream?.peerConnection) {
-                const stats = await webRTCStream.peerConnection.getStats();
-                return stats;
+                if (typeof webRTCStream.peerConnection.getStats === 'function') {
+                    const stats = await webRTCStream.peerConnection.getStats();
+                    return stats;
+                }
+                return null;
             }
             return null;
         } catch (error) {
@@ -620,7 +793,36 @@ class WebRTCService {
         this.signalingCallback = undefined;
         this.camera = null;
         this.eventListeners = [];
+        if (this.signalingListener) {
+            try { signalingService.removeEventListener(this.signalingListener); } catch { /* ignore */ }
+            this.signalingListener = undefined;
+        }
         webrtcLogger.info('WebRTC service cleaned up');
+    }
+
+    // ICE Restart 시도
+    private async maybeRestartIce(peerConnection: any, streamId: string, fromId: string, toId: string): Promise<void> {
+        try {
+            const last = this.iceRestartTimestamps.get(streamId) || 0;
+            if (Date.now() - last < this.iceRestartMinIntervalMs) {
+                return;
+            }
+            this.iceRestartTimestamps.set(streamId, Date.now());
+
+            webrtcLogger.info('Attempt ICE restart', { streamId });
+            const offer = await peerConnection.createOffer({ iceRestart: true });
+            await peerConnection.setLocalDescription(offer);
+            const message: SignalingMessage = {
+                type: 'offer',
+                from: fromId,
+                to: toId,
+                data: offer,
+            };
+            this.sendSignalingMessage(message);
+            this.emitEvent('offer_created', streamId, { iceRestart: true });
+        } catch (error) {
+            webrtcLogger.error('ICE restart failed', error as Error, { streamId });
+        }
     }
 }
 
