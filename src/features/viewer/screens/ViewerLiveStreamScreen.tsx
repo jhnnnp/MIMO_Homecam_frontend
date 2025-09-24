@@ -24,6 +24,8 @@ const SCREEN_COLORS = {
     text: '#000000',
     textSecondary: '#8E8E93',
     border: '#C6C6C8',
+    overlay: 'rgba(0,0,0,0.6)',
+    glass: 'rgba(255,255,255,0.12)'
 } as const;
 import {
     View,
@@ -47,6 +49,10 @@ import * as Haptics from 'expo-haptics';
 import { WebRTCVideoPlayer } from '@/shared/components/media/WebRTCVideoPlayer';
 import { webrtcService, WebRTCStream } from '@/shared/services/core/webrtcService';
 import { signalingService } from '@/shared/services/core/signalingService';
+// iOS 렌더링 호환을 위한 RTCView (react-native-webrtc)
+// 네이티브 빌드 환경에서만 사용되며, Android에서도 동작합니다.
+// Expo Go에서는 사용되지 않습니다.
+import { RTCView } from 'react-native-webrtc';
 
 // Design tokens 제거 - 하드코딩된 값 사용
 
@@ -55,26 +61,28 @@ import { RootStackParamList } from '@/app/navigation/AppNavigator';
 
 // Utils
 import { logger } from '@/shared/utils/logger';
+import { colors as dsColors, elevation as dsElevation, spacing as dsSpacing, radius as dsRadius } from '@/design/tokens/tokens';
+import { getElevation } from '@/shared/styles/crossPlatform';
 
 // Constants
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// 향상된 색상 팔레트 (MIMO 브랜딩)
+// 디자인 토큰 매핑 (다크 배경 화면용)
 const colors = {
-    primary: '#607A78',        // Muted Green
-    primaryLight: '#D9E0DF',   // Primary Light
-    accent: '#F5C572',         // Warm Yellow
-    success: '#58A593',        // Muted Teal
-    warning: '#E6A556',        // Warm Orange
-    error: '#D97373',          // Muted Red
+    primary: dsColors.primary,
+    primaryLight: dsColors.primaryLight,
+    accent: dsColors.accent,
+    success: dsColors.success,
+    warning: dsColors.warning,
+    error: dsColors.error,
     background: '#000000',
-    surface: '#FFFFFF',
-    text: '#FFFFFF',
-    textSecondary: '#B0B0B0',
+    surface: dsColors.surface,
+    text: dsColors.textOnPrimary,
+    textSecondary: dsColors.disabledText,
     border: '#333333',
-    overlay: 'rgba(0, 0, 0, 0.7)',
-    glass: 'rgba(255, 255, 255, 0.1)',
-};
+    overlay: dsColors.dimOverlay,
+    glass: 'rgba(255,255,255,0.10)'
+} as const;
 
 // Types
 type ViewerLiveStreamScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'LiveStream'>;
@@ -336,15 +344,24 @@ const ViewerLiveStreamScreen = memo(({ navigation, route }: ViewerLiveStreamScre
             >
                 {/* WebRTC 비디오 플레이어 또는 Fallback */}
                 {remoteStream ? (
-                    <WebRTCVideoPlayer
-                        stream={remoteStream}
-                        style={styles.videoPlayer}
-                        objectFit="cover"
-                        onError={(error) => {
-                            logger.error('[ViewerLiveStream] 비디오 플레이어 오류:', new Error(error));
-                            setConnectionStatus('failed');
-                        }}
-                    />
+                    Platform.OS === 'ios' ? (
+                        // iOS 네이티브에서 RTCView의 prop 명세가 빌드 환경에 따라 달라질 수 있어 any 캐스팅으로 호환 처리
+                        (React.createElement as any)(RTCView, {
+                            style: styles.videoPlayer,
+                            objectFit: 'cover',
+                            ...(typeof remoteStream?.toURL === 'function' ? { streamURL: remoteStream.toURL() } : {})
+                        })
+                    ) : (
+                        <WebRTCVideoPlayer
+                            stream={remoteStream}
+                            style={styles.videoPlayer}
+                            objectFit="cover"
+                            onError={(error) => {
+                                logger.error('[ViewerLiveStream] 비디오 플레이어 오류:', new Error(error));
+                                setConnectionStatus('failed');
+                            }}
+                        />
+                    )
                 ) : (
                     <View style={styles.fallbackVideo}>
                         <LinearGradient
@@ -595,11 +612,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 16,
-        shadowColor: SCREEN_COLORS.primary,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 3,
+        ...getElevation(1),
     },
     qualityText: {
         fontSize: 14,
@@ -614,6 +627,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 16,
         gap: 8,
+        ...getElevation(1),
     },
     liveDot: {
         width: 8,
@@ -644,6 +658,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 16,
+        ...getElevation(1),
     },
     connectionInfo: {
         flexDirection: 'row',
@@ -732,6 +747,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 16,
         backgroundColor: SCREEN_COLORS.overlay,
+        ...getElevation(1),
     },
     controlButton: {
         width: 48,
@@ -740,11 +756,7 @@ const styles = StyleSheet.create({
         backgroundColor: SCREEN_COLORS.glass,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+        ...getElevation(1),
     },
     titleContainer: {
         flex: 1,
@@ -781,6 +793,7 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
         backgroundColor: SCREEN_COLORS.overlay,
         gap: 20,
+        ...getElevation(1),
     },
     qualityButton: {
         flexDirection: 'row',
@@ -790,11 +803,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         borderRadius: 16,
         gap: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+        ...getElevation(1),
     },
     qualityButtonText: {
         fontSize: 14,
@@ -808,11 +817,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         borderRadius: 16,
         gap: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+        ...getElevation(1),
     },
     recordButtonText: {
         fontSize: 14,
@@ -827,11 +832,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         borderRadius: 16,
         gap: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
+        ...getElevation(1),
     },
     settingsButtonText: {
         fontSize: 14,
