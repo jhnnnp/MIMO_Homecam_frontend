@@ -14,7 +14,7 @@ import {
     ActivityIndicator,
     Pressable, // TouchableOpacity 대신 Pressable을 사용하여 더 세밀한 상호작용 제어
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -56,6 +56,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginScreen({ navigation }: any) {
     const { login, isLoading } = useAuthStore();
+    const insets = useSafeAreaInsets();
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     // 현재 포커스된 입력 필드를 추적하기 위한 상태 추가
     const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -114,17 +115,18 @@ export default function LoginScreen({ navigation }: any) {
             <StatusBar barStyle="dark-content" backgroundColor={mimoColors.background} />
             <View style={styles.container}>
 
-                <SafeAreaView style={styles.safeArea}>
+                <SafeAreaView style={styles.safeArea} edges={['top','bottom']}>
                     <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                         style={styles.keyboardAvoidingView}
-                        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
                     >
                         <ScrollView
                             contentContainerStyle={styles.scrollContainer}
                             showsVerticalScrollIndicator={false}
-                            keyboardShouldPersistTaps="always"
-                            keyboardDismissMode="none"
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
+                            contentInsetAdjustmentBehavior="always"
                             bounces={false}
                             scrollEnabled={true}
                         >

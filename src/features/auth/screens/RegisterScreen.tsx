@@ -19,7 +19,7 @@ import { z } from 'zod';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { Button, TextField, Card, AppBar } from '@/features/../shared/components';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -81,6 +81,7 @@ interface RegisterScreenProps {
 }
 
 export default function RegisterScreen({ navigation }: RegisterScreenProps) {
+    const insets = useSafeAreaInsets();
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -156,7 +157,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             <StatusBar barStyle="dark-content" backgroundColor={mimoColors.background} />
             <View style={styles.container}>
 
-                <SafeAreaView style={styles.safeArea}>
+                <SafeAreaView style={styles.safeArea} edges={['top','bottom']}>
                     {/* Enhanced AppBar */}
                     <View style={styles.appBarContainer}>
                         <TouchableOpacity
@@ -173,6 +174,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                     <KeyboardAvoidingView
                         style={styles.keyboardAvoidingView}
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
                     >
                         <ScrollView
                             style={styles.scrollView}
