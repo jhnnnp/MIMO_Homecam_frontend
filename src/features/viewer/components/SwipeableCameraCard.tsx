@@ -409,7 +409,7 @@ const SwipeableCameraCard = memo<SwipeableCameraCardProps>(({
                                         handleOpenActionSheet('record');
                                     }}
                                 >
-                                    <Ionicons name="recording" size={24} color={colors.error} />
+                                    <Ionicons name="radio-button-on" size={24} color={colors.error} />
                                     <Text style={styles.actionButtonText}>녹화</Text>
                                 </TouchableOpacity>
 

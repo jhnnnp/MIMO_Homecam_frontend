@@ -346,7 +346,7 @@ export default function APITestScreen({ navigation }: APITestScreenProps) {
                                 colors={[colors.success + '20', colors.primary + '15']}
                                 style={styles.cardIcon}
                             >
-                                <Ionicons name="server" size={24} color={colors.success} />
+                                <Ionicons name="hardware-chip-outline" size={24} color={colors.success} />
                             </LinearGradient>
                             <View style={styles.cardInfo}>
                                 <Text style={styles.cardTitle}>사전 정의된 API</Text>

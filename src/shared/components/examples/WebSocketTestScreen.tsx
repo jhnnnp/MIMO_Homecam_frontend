@@ -592,7 +592,7 @@ export default function WebSocketTestScreen({ navigation }: WebSocketTestScreenP
                                     colors={[colors.success + '20', colors.primary + '15']}
                                     style={styles.cardIcon}
                                 >
-                                    <Ionicons name="server" size={24} color={colors.success} />
+                                    <Ionicons name="hardware-chip-outline" size={24} color={colors.success} />
                                 </LinearGradient>
                                 <View style={styles.cardInfo}>
                                     <Text style={styles.cardTitle}>API 엔드포인트 테스트</Text>
@@ -629,7 +629,7 @@ export default function WebSocketTestScreen({ navigation }: WebSocketTestScreenP
                                     colors={[colors.warning + '20', colors.primary + '15']}
                                     style={styles.cardIcon}
                                 >
-                                    <Ionicons name="library" size={24} color={colors.warning} />
+                                    <Ionicons name="book-outline" size={24} color={colors.warning} />
                                 </LinearGradient>
                                 <View style={styles.cardInfo}>
                                     <Text style={styles.cardTitle}>데이터베이스 테스트</Text>
@@ -689,7 +689,7 @@ export default function WebSocketTestScreen({ navigation }: WebSocketTestScreenP
                                 ]}
                                 onPress={runPerformanceTest}
                             >
-                                <Ionicons name="analytics" size={20} color={colors.accent} />
+                                <Ionicons name="stats-chart" size={20} color={colors.accent} />
                                 <Text style={styles.performanceButtonText}>성능 테스트 실행</Text>
                             </Pressable>
                         </View>

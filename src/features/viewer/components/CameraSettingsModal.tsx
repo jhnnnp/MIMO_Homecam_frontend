@@ -254,7 +254,7 @@ const CameraSettingsModal = memo<CameraSettingsModalProps>(({
                             <View style={styles.settingItem}>
                                 <View style={styles.settingInfo}>
                                     <View style={styles.settingIconContainer}>
-                                        <Ionicons name="recording" size={20} color={colors.error} />
+                                        <Ionicons name="radio-button-on" size={20} color={colors.error} />
                                     </View>
                                     <View style={styles.settingText}>
                                         <Text style={styles.settingLabel}>자동 녹화</Text>

@@ -152,7 +152,7 @@ export default function NotificationSettingsScreen({ navigation }: NotificationS
                     {/* 알림 통계 */}
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                            <Ionicons name="analytics" size={24} color={SETTINGS_COLORS.primary} />
+                            <Ionicons name="stats-chart" size={24} color={SETTINGS_COLORS.primary} />
                             <Text style={styles.sectionTitle}>알림 통계</Text>
                         </View>
 
