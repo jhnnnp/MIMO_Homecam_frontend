@@ -320,9 +320,18 @@ class SignalingService {
             this.connectionState = state;
 
             signalingLogger.info('연결 상태 변경:', { from: oldState, to: state });
-            this.emitEvent(state === 'connected' ? 'connected' :
-                state === 'disconnected' ? 'disconnected' :
-                    state === 'reconnecting' ? 'reconnecting' : 'failed');
+            // 상태별 올바른 이벤트 방출
+            if (state === 'connected') {
+                this.emitEvent('connected');
+            } else if (state === 'disconnected') {
+                this.emitEvent('disconnected');
+            } else if (state === 'reconnecting') {
+                this.emitEvent('reconnecting');
+            } else if (state === 'failed') {
+                this.emitEvent('failed');
+            } else {
+                // 'connecting' 상태는 별도 이벤트를 방출하지 않습니다.
+            }
         }
     }
 

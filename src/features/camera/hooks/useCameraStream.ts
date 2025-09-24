@@ -462,19 +462,19 @@ export const useCameraStream = (): HookReturn<StreamState, StreamActions> => {
         };
 
         // 이벤트 리스너 등록
-        streamingService.on('streamStarted', handleStreamStarted);
-        streamingService.on('streamStopped', handleStreamStopped);
-        streamingService.on('viewerJoined', handleViewerJoined);
-        streamingService.on('viewerLeft', handleViewerLeft);
-        streamingService.on('streamError', handleStreamError);
+        streamingService.on('stream_started', handleStreamStarted);
+        streamingService.on('stream_stopped', handleStreamStopped);
+        streamingService.on('viewer_joined', handleViewerJoined);
+        streamingService.on('viewer_left', handleViewerLeft);
+        streamingService.on('error', handleStreamError);
 
         return () => {
             // 이벤트 리스너 제거
-            streamingService.off('streamStarted', handleStreamStarted);
-            streamingService.off('streamStopped', handleStreamStopped);
-            streamingService.off('viewerJoined', handleViewerJoined);
-            streamingService.off('viewerLeft', handleViewerLeft);
-            streamingService.off('streamError', handleStreamError);
+            streamingService.off('stream_started', handleStreamStarted);
+            streamingService.off('stream_stopped', handleStreamStopped);
+            streamingService.off('viewer_joined', handleViewerJoined);
+            streamingService.off('viewer_left', handleViewerLeft);
+            streamingService.off('error', handleStreamError);
         };
     }, [safeSetState, handleError]);
 

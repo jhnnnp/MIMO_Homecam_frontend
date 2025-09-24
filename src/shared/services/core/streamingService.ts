@@ -610,10 +610,7 @@ class StreamingService extends EventEmitter {
             streamingLogger.logUserAction('Join stream', { cameraId, viewerId });
 
             try {
-                // WebRTC 스트림 시청 시작
-                await webrtcService.startViewing(cameraId, viewerId);
-
-                // 서버에 스트림 참여 알림
+                // 서버에 참여 요청만 전달 (WebRTC 생성은 호출부에서 수행)
                 await this.sendMessage('join_stream', {
                     cameraId,
                     viewerId,

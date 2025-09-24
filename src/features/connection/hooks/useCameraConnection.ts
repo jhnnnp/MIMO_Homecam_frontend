@@ -27,6 +27,7 @@ import {
 import { ApiResponse } from '@/shared/types/api';
 import { logger, logHook, logHookError } from '@/shared/utils/logger';
 import webrtcService from '@/shared/services/core/webrtcService';
+import { signalingService } from '@/shared/services/core/signalingService';
 
 // ============================================================================
 // 타입 정의
@@ -373,6 +374,18 @@ export function useCameraConnection(
                 // WebRTC 스트리밍 시작
                 const targetViewerId = viewerId || 'default_viewer';
                 const stream = await webrtcService.startStreaming(cameraId, targetViewerId);
+
+                // 시그널링 서버에 스트림 시작 알림 (서버가 viewer_joined 이후 stream_started 브로드캐스트)
+                try {
+                    await signalingService.sendMessage({
+                        type: 'start_stream',
+                        data: {
+                            cameraId,
+                            viewerId: targetViewerId,
+                            timestamp: Date.now()
+                        }
+                    });
+                } catch (_) { /* 네트워크 오류는 상위 에러 처리로 위임 */ }
 
                 console.log('🎥 [스트리밍] WebRTC 스트림 시작됨:', stream.id);
                 console.log('🎥 [스트리밍] 뷰어 ID:', targetViewerId);

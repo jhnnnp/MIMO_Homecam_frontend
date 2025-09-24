@@ -493,8 +493,12 @@ class WebRTCService {
             // 시그널링 서버 연결 확인
             await this.ensureSignalingConnection();
 
-            // 스트림 참여 요청
-            await signalingService.joinStream(cameraId, viewerId);
+            // 뷰어 참여를 서버에 먼저 등록하여 라우팅 매핑을 보장
+            try {
+                await signalingService.joinStream(cameraId, viewerId);
+            } catch (e) {
+                webrtcLogger.warn('join_stream 전송 실패, 계속 시도합니다');
+            }
 
             // 고유한 스트림 ID 생성 (양방향 매칭 지원)
             const streamId = this.generateStreamId(cameraId, viewerId);
@@ -548,18 +552,7 @@ class WebRTCService {
                 this.emitEvent('signaling_state_changed', streamId, state);
             };
 
-            // 재협상 이벤트
-            peerConnection.onnegotiationneeded = async () => {
-                try {
-                    webrtcLogger.info('Negotiation needed', { streamId });
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
-                    const msg: SignalingMessage = { type: 'offer', from: viewerId, to: cameraId, data: offer };
-                    this.sendSignalingMessage(msg);
-                } catch (e) {
-                    webrtcLogger.error('Renegotiation failed', e as Error, { streamId });
-                }
-            };
+            // 뷰어 측은 초기 오퍼 생성/재협상을 직접 트리거하지 않음 (카메라가 주도)
 
             // ICE 후보 수집 에러
             (peerConnection as any).onicecandidateerror = (e: any) => {
@@ -634,6 +627,15 @@ class WebRTCService {
 
             switch (type) {
                 case 'offer':
+                    // 시그널링 상태가 안정(stable)일 때만 오퍼 처리 (중복/경합 방지)
+                    if (webRTCStream.peerConnection.signalingState !== 'stable') {
+                        webrtcLogger.warn('Ignoring offer due to signaling state', {
+                            streamId: webRTCStream.id,
+                            state: webRTCStream.peerConnection.signalingState
+                        });
+                        break;
+                    }
+
                     await webRTCStream.peerConnection.setRemoteDescription(
                         new RTCSessionDescription(data)
                     );
@@ -653,6 +655,14 @@ class WebRTCService {
                     break;
 
                 case 'answer':
+                    // 로컬 오퍼가 존재할 때만 원격 Answer 적용
+                    if (webRTCStream.peerConnection.signalingState !== 'have-local-offer') {
+                        webrtcLogger.warn('Ignoring answer due to signaling state', {
+                            streamId: webRTCStream.id,
+                            state: webRTCStream.peerConnection.signalingState
+                        });
+                        break;
+                    }
                     await webRTCStream.peerConnection.setRemoteDescription(
                         new RTCSessionDescription(data)
                     );

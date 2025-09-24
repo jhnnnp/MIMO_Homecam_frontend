@@ -326,12 +326,12 @@ export function useViewerConnection(
                     }
                 }
 
+                // 서버에 먼저 참여 알림 (중복 join 방지)
+                await streamingService.joinStream(cameraId, viewerId);
+
                 // WebRTC 시청 시작 (viewer)
                 const webrtcStream = await webrtcService.startViewing(cameraId, viewerId);
                 webrtcConnectionRef.current = webrtcStream;
-
-                // 스트림 참여 요청
-                streamingService.joinStream(cameraId, viewerId);
 
                 const connectedCamera = camera || streamingService.getCamera(cameraId);
                 if (connectedCamera) {
@@ -414,11 +414,11 @@ export function useViewerConnection(
                     return;
                 }
 
+                // 스트림 시청 시작 요청을 먼저 서버로
+                await streamingService.joinStream(cameraId, viewerId);
+
                 // WebRTC 시청 시작 (viewer)
                 await webrtcService.startViewing(cameraId, viewerId);
-
-                // 스트림 시청 시작 요청
-                streamingService.joinStream(cameraId, viewerId);
 
                 safeSetState(prev => ({
                     ...prev,
@@ -592,6 +592,26 @@ export function useViewerConnection(
 
                 console.log('📋 [뷰어 연결] 연결된 카메라 정보:', JSON.stringify(connectedCamera, null, 2));
 
+                // server에 스트림 참여 알림 (누락 시 viewer_joined 이벤트가 발생하지 않아 stuck)
+                try {
+                    await streamingService.joinStream(cameraData.cameraId, viewerId);
+
+                    // 참여 확인까지 대기 (최대 7초)
+                    await new Promise<void>((resolve, reject) => {
+                        const timer = setTimeout(() => reject(new Error('join_timeout')), 7000);
+                        const onJoined = (data: any) => {
+                            if (data?.cameraId === cameraData.cameraId && data?.viewerId === viewerId) {
+                                clearTimeout(timer);
+                                streamingService.off('stream_joined', onJoined);
+                                resolve();
+                            }
+                        };
+                        streamingService.on('stream_joined', onJoined);
+                    });
+                } catch (e) {
+                    throw new NetworkError('실시간 참여 확인에 실패했습니다. 네트워크를 확인해주세요.');
+                }
+
                 // streamingService의 connectedCameras에 카메라 추가
                 console.log('🔧 [카메라 추가] addConnectedCamera 호출 전');
                 streamingService.addConnectedCamera(connectedCamera);
@@ -602,7 +622,7 @@ export function useViewerConnection(
                 console.log('🔧 [카메라 추가] 추가 후 카메라 목록:', JSON.stringify(camerasAfterAdd, null, 2));
                 console.log('🔧 [카메라 추가] 추가 후 카메라 개수:', camerasAfterAdd.length);
 
-                // WebRTC 스트림 수신 시작
+                // WebRTC 스트림 수신 시작 (join 확인 후 시작)
                 console.log('🎥 [뷰어 연결] WebRTC 스트림 수신 시작...');
                 const stream = await webrtcService.startViewing(cameraData.cameraId, viewerId);
 
@@ -844,6 +864,13 @@ export function useViewerConnection(
                 ...prev,
                 availableCameras: [...prev.availableCameras.filter(c => c.id !== cameraData.id), cameraData]
             }));
+
+            // 뷰어 우선 접속 시: 카메라가 뒤늦게 연결되면 자동으로 다시 참여 시도
+            if (state.connectedCamera?.id === cameraData.id && !state.isWatching) {
+                streamingService.joinStream(cameraData.id, viewerId).then(async () => {
+                    try { await webrtcService.startViewing(cameraData.id, viewerId); } catch { /* ignore */ }
+                }).catch(() => {/* ignore */ });
+            }
         };
 
         const handleCameraDisconnected = (cameraId: string) => {
@@ -891,10 +918,10 @@ export function useViewerConnection(
 
         streamingService.on('connected', handleConnected);
         streamingService.on('disconnected', handleDisconnected);
-        streamingService.on('cameraConnected', handleCameraConnected);
-        streamingService.on('cameraDisconnected', handleCameraDisconnected);
-        streamingService.on('streamStarted', handleStreamStarted);
-        streamingService.on('streamStopped', handleStreamStopped);
+        streamingService.on('camera_connected', handleCameraConnected);
+        streamingService.on('camera_disconnected', handleCameraDisconnected);
+        streamingService.on('stream_started', handleStreamStarted);
+        streamingService.on('stream_stopped', handleStreamStopped);
         streamingService.on('error', handleStreamingError);
 
         // ============================================================================
@@ -915,10 +942,10 @@ export function useViewerConnection(
             // 이벤트 리스너 제거
             streamingService.off('connected', handleConnected);
             streamingService.off('disconnected', handleDisconnected);
-            streamingService.off('cameraConnected', handleCameraConnected);
-            streamingService.off('cameraDisconnected', handleCameraDisconnected);
-            streamingService.off('streamStarted', handleStreamStarted);
-            streamingService.off('streamStopped', handleStreamStopped);
+            streamingService.off('camera_connected', handleCameraConnected);
+            streamingService.off('camera_disconnected', handleCameraDisconnected);
+            streamingService.off('stream_started', handleStreamStarted);
+            streamingService.off('stream_stopped', handleStreamStopped);
             streamingService.off('error', handleStreamingError);
 
             logViewer(viewerId, 'cleanup', '뷰어 연결 훅 정리 완료');
