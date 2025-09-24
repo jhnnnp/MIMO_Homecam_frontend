@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 
-// 홈캠 목록과 일치하는 iOS 스타일 색상 팔레트
+// 홈캠 목록과 일치하는 색상 팔레트 (Android에서도 동일 렌더링되도록 누락 키 추가)
 const SCREEN_COLORS = {
     primary: '#007AFF',
     success: '#34C759',
@@ -8,9 +8,12 @@ const SCREEN_COLORS = {
     error: '#FF3B30',
     background: '#F2F2F7',
     surface: '#FFFFFF',
+    surfaceAlt: '#F7F4EF',
     text: '#000000',
     textSecondary: '#8E8E93',
     border: '#C6C6C8',
+    divider: '#E5E5EA',
+    accent: '#F5C572',
 } as const;
 import {
     View,
